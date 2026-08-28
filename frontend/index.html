@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sri Lanka ESG Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .markdown-body h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .markdown-body h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .markdown-body h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .markdown-body p { margin-bottom: 0.75rem; }
+        .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+        .markdown-body strong { font-weight: bold; color: #2d3748; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+    
+    <nav class="bg-green-700 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">🌱 Sri Lanka ESG AI Monitor</h1>
+            <span class="text-sm">Real-time Environmental Insights</span>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 mt-6">
+        <div id="loading" class="text-center text-lg text-gray-600 font-semibold my-10">
+            <svg class="animate-spin h-8 w-8 text-green-700 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Fetching Live Data and Generating AI Insights...
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <div class="mb-6 flex justify-between items-end border-b border-gray-300 pb-2">
+                <h2 class="text-3xl font-extrabold text-gray-900" id="location-name">Location</h2>
+                <span class="text-gray-500 text-sm" id="timestamp"></span>
+            </div>
+
+            <!-- Data Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                
+                <!-- Air Quality Card -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
+                    <h3 class="text-xl font-bold mb-4 flex items-center text-blue-800">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                        Air Quality Metrics
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">PM 2.5</span><span class="font-bold text-lg" id="pm25">--</span> µg/m³</div>
+                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">PM 10</span><span class="font-bold text-lg" id="pm10">--</span> µg/m³</div>
+                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">Nitrogen Dioxide (NO₂)</span><span class="font-bold text-lg" id="no2">--</span> µg/m³</div>
+                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">Ozone (O₃)</span><span class="font-bold text-lg" id="o3">--</span> µg/m³</div>
+                    </div>
+                </div>
+
+                <!-- Weather Card -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-yellow-500">
+                    <h3 class="text-xl font-bold mb-4 flex items-center text-yellow-800">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        Climate/Weather
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Temperature</span><span class="font-bold text-lg" id="temp">--</span> °C</div>
+                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Humidity</span><span class="font-bold text-lg" id="humidity">--</span> %</div>
+                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Wind Speed</span><span class="font-bold text-lg" id="wind">--</span> km/h</div>
+                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Precipitation</span><span class="font-bold text-lg" id="precip">--</span> mm</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Insights Card -->
+            <div class="bg-white rounded-lg shadow-lg border-t-4 border-green-600">
+                <div class="bg-green-50 p-4 border-b border-gray-200">
+                    <h3 class="text-xl font-bold flex items-center text-green-900">
+                        <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        AI-Generated ESG Predictive Insights & Mitigation
+                    </h3>
+                </div>
+                <div class="p-6 markdown-body" id="ai-insights">
+                    <!-- AI Content gets injected here -->
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-6" role="alert">
+            <strong class="font-bold">Holy smokes!</strong>
+            <span class="block sm:inline" id="error-text">Something went wrong.</span>
+        </div>
+    </div>
+
+    <script>
+        async function fetchDashboardData() {
+            try {
+                const response = await fetch('http://localhost:8000/api/environmental-data');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                // Populate Location and Time
+                document.getElementById('location-name').textContent = data.location;
+                const time = new Date(data.air_quality.time).toLocaleString();
+                document.getElementById('timestamp').textContent = `Last Updated: ${time}`;
+
+                // Populate AQI Data
+                document.getElementById('pm25').textContent = data.air_quality.pm2_5;
+                document.getElementById('pm10').textContent = data.air_quality.pm10;
+                document.getElementById('no2').textContent = data.air_quality.nitrogen_dioxide;
+                document.getElementById('o3').textContent = data.air_quality.ozone;
+
+                // Populate Weather Data
+                document.getElementById('temp').textContent = data.weather.temperature_2m;
+                document.getElementById('humidity').textContent = data.weather.relative_humidity_2m;
+                document.getElementById('wind').textContent = data.weather.wind_speed_10m;
+                document.getElementById('precip').textContent = data.weather.precipitation;
+
+                // Populate AI Insights (Converting Markdown to HTML)
+                document.getElementById('ai-insights').innerHTML = marked.parse(data.insights);
+
+                // UI State Toggle
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Failed to fetch data:", error);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error-message').classList.remove('hidden');
+                document.getElementById('error-text').textContent = "Failed to load data from the backend. Make sure the FastAPI server is running.";
+            }
+        }
+
+        // Run on load
+        window.onload = fetchDashboardData;
+    </script>
+</body>
+</html>

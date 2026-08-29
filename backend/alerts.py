@@ -43,7 +43,7 @@ def send_threshold_alert(city_name: str, breaches: list[dict]):
                 "subject": f"Air quality alert: {city_name}",
                 "text": body,
             },
-            timeout=10,
+            timeout=20,
         )
         response.raise_for_status()
     except Exception as e:

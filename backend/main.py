@@ -5,9 +5,9 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from backend import db, alerts
-
 load_dotenv()
+
+from backend import db, alerts
 
 app = FastAPI(title="Sri Lanka ESG AI Monitor")
 

@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         .markdown-body h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
         .markdown-body h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
@@ -39,6 +41,18 @@
         .tab-btn { padding: 0.375rem 0.9rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; background: #f3f4f6; color: #374151; border: 1px solid transparent; cursor: pointer; }
         .tab-btn.active { background: #16a34a; color: #fff; }
         .tab-panel.hidden { display: none; }
+
+        /* City switcher */
+        #city-select { font-weight: 700; font-size: 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.25rem 0.5rem; background: #fff; }
+
+        /* Alert banner + threshold settings */
+        #alert-banner { border-left: 4px solid #dc2626; }
+        .threshold-input { width: 5.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; padding: 0.15rem 0.4rem; font-size: 0.85rem; }
+
+        /* Map */
+        #map { height: 320px; border-radius: 0.5rem; z-index: 0; }
+        .map-popup-title { font-weight: 700; margin-bottom: 0.25rem; }
+        .map-popup-note { font-size: 0.7rem; color: #6b7280; margin-top: 0.25rem; }
 
         /* Responsive tables inside AI insight content */
         .table-scroll { overflow-x: auto; }
@@ -81,7 +95,10 @@
         <div id="dashboard" class="hidden">
             <div class="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-gray-300 pb-4">
                 <div>
-                    <h2 class="text-3xl font-extrabold text-gray-900" id="location-name">Location</h2>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h2 class="text-3xl font-extrabold text-gray-900" id="location-name">Location</h2>
+                        <select id="city-select" aria-label="Select city"></select>
+                    </div>
                     <span class="text-gray-500 text-sm" id="timestamp"></span>
                 </div>
 
@@ -92,6 +109,20 @@
                     <div class="text-[0.65rem] text-gray-400" id="aqi-dominant">Composite AQI</div>
                 </div>
             </div>
+
+            <!-- Alert banner: threshold breaches / Key Risk Window -->
+            <div id="alert-banner" class="hidden bg-red-50 text-red-800 rounded p-4 mb-4">
+                <div class="font-bold flex items-center gap-2">⚠ <span id="alert-banner-title">Alert</span></div>
+                <ul id="alert-banner-list" class="text-sm mt-1 ml-6 list-disc"></ul>
+            </div>
+
+            <!-- Alert threshold settings -->
+            <details class="mb-4 text-sm bg-white border border-gray-200 rounded-lg p-3">
+                <summary class="cursor-pointer font-semibold text-gray-700">Alert threshold settings</summary>
+                <p class="text-xs text-gray-500 mt-2 mb-3">Defaults to WHO Air Quality Guideline levels (µg/m³). Overrides are saved in this browser only.</p>
+                <div id="threshold-inputs" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+                <button id="threshold-reset" class="mt-3 text-xs text-indigo-600 hover:underline">Reset to WHO defaults</button>
+            </details>
 
             <!-- Legend -->
             <div class="flex flex-wrap gap-4 items-center text-xs text-gray-600 mb-3">
@@ -255,6 +286,20 @@
                     </div>
                     <div class="tab-panel markdown-body hidden" id="tab-panel-mitigation"></div>
                     <div class="tab-panel markdown-body hidden" id="tab-panel-summary"></div>
+                </div>
+            </div>
+
+            <!-- Monitoring Locations Map -->
+            <div class="bg-white rounded-lg shadow-lg border-t-4 border-teal-500 mt-8">
+                <div class="bg-teal-50 p-4 border-b border-gray-200">
+                    <h3 class="text-xl font-bold flex items-center text-teal-900">
+                        <svg class="w-6 h-6 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        Monitoring Locations
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1">Pins mark locations mentioned in the AI's mitigation section for the current city. Metrics shown are the city-wide reading, not hyperlocal sensor data.</p>
+                </div>
+                <div class="p-6">
+                    <div id="map"></div>
                 </div>
             </div>
 
@@ -586,8 +631,202 @@
             currentPanel.classList.remove('hidden');
         }
 
+        // ---------------------------------------------------------------
+        // Multi-city support (Phase 3)
+        // ---------------------------------------------------------------
+        let currentCity = localStorage.getItem('selectedCity') || 'colombo';
+
+        async function loadCities() {
+            try {
+                const res = await fetch('/api/cities');
+                const data = await res.json();
+                const select = document.getElementById('city-select');
+                select.innerHTML = '';
+                data.cities.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.name.split(',')[0];
+                    select.appendChild(opt);
+                });
+                if (!data.cities.some(c => c.id === currentCity)) currentCity = data.default;
+                select.value = currentCity;
+                select.addEventListener('change', () => {
+                    currentCity = select.value;
+                    localStorage.setItem('selectedCity', currentCity);
+                    document.getElementById('loading').classList.remove('hidden');
+                    document.getElementById('dashboard').classList.add('hidden');
+                    fetchDashboardData();
+                });
+            } catch (e) {
+                console.error('Failed to load city list:', e);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Threshold-based alerting (Phase 3)
+        // ---------------------------------------------------------------
+        const THRESHOLD_METRIC_LABELS = { pm2_5: 'PM2.5', pm10: 'PM10', nitrogen_dioxide: 'NO₂', ozone: 'O₃', carbon_monoxide: 'CO' };
+        let activeThresholds = {};
+        let lastAirQuality = null;
+        let lastInsightsText = '';
+
+        function loadStoredThresholdOverrides() {
+            try { return JSON.parse(localStorage.getItem('thresholdOverrides') || '{}'); }
+            catch { return {}; }
+        }
+
+        function saveThresholdOverrides(overrides) {
+            localStorage.setItem('thresholdOverrides', JSON.stringify(overrides));
+        }
+
+        function renderThresholdInputs(defaults) {
+            const container = document.getElementById('threshold-inputs');
+            container.innerHTML = '';
+            const overrides = loadStoredThresholdOverrides();
+            activeThresholds = Object.assign({}, defaults, overrides);
+
+            Object.keys(defaults).forEach(metric => {
+                const wrapper = document.createElement('label');
+                wrapper.className = 'flex flex-col text-xs text-gray-600';
+                wrapper.textContent = `${THRESHOLD_METRIC_LABELS[metric] || metric} (µg/m³)`;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.className = 'threshold-input mt-1';
+                input.value = activeThresholds[metric];
+                input.addEventListener('change', () => {
+                    const value = parseFloat(input.value);
+                    const overridesNow = loadStoredThresholdOverrides();
+                    if (isNaN(value)) delete overridesNow[metric];
+                    else overridesNow[metric] = value;
+                    saveThresholdOverrides(overridesNow);
+                    activeThresholds[metric] = isNaN(value) ? defaults[metric] : value;
+                    checkAlerts(lastAirQuality, lastInsightsText);
+                });
+                wrapper.appendChild(input);
+                container.appendChild(wrapper);
+            });
+
+            document.getElementById('threshold-reset').onclick = () => {
+                saveThresholdOverrides({});
+                renderThresholdInputs(defaults);
+                checkAlerts(lastAirQuality, lastInsightsText);
+            };
+        }
+
+        const KEY_RISK_REGEX = /key risk window[:\s]*([^\n]*)/i;
+
+        function checkAlerts(airQuality, insightsText) {
+            const banner = document.getElementById('alert-banner');
+            const titleEl = document.getElementById('alert-banner-title');
+            const listEl = document.getElementById('alert-banner-list');
+            listEl.innerHTML = '';
+            const items = [];
+
+            if (airQuality) {
+                Object.entries(activeThresholds).forEach(([metric, limit]) => {
+                    const value = airQuality[metric];
+                    if (value != null && value > limit) {
+                        items.push(`${THRESHOLD_METRIC_LABELS[metric] || metric} is ${value} µg/m³, above your threshold of ${limit} µg/m³`);
+                    }
+                });
+            }
+
+            const riskMatch = insightsText && insightsText.match(KEY_RISK_REGEX);
+            if (riskMatch && riskMatch[1] && riskMatch[1].trim()) {
+                items.push(`Key Risk Window: ${riskMatch[1].trim()}`);
+            }
+
+            if (!items.length) {
+                banner.classList.add('hidden');
+                return;
+            }
+            titleEl.textContent = items.length === 1 ? 'Alert' : `${items.length} alerts`;
+            items.forEach(text => {
+                const li = document.createElement('li');
+                li.textContent = text;
+                listEl.appendChild(li);
+            });
+            banner.classList.remove('hidden');
+        }
+
+        // ---------------------------------------------------------------
+        // Monitoring locations map (Phase 3) - Leaflet + OpenStreetMap
+        // ---------------------------------------------------------------
+        const KNOWN_LOCATIONS = {
+            colombo: {
+                'galle road': [6.8905, 79.8565], 'baseline road': [6.9147, 79.8774],
+                'kolonnawa': [6.9319, 79.8817], 'sapugaskanda': [6.9944, 79.9142],
+                'fort': [6.9344, 79.8428], 'pettah': [6.9385, 79.8500],
+                'borella': [6.9147, 79.8774], 'kollupitiya': [6.9147, 79.8500],
+                'colombo': [6.9271, 79.8612],
+            },
+            kandy: {
+                'kandy lake': [7.2925, 80.6414], 'peradeniya': [7.2599, 80.5977],
+                'katugastota': [7.3312, 80.6193], 'kandy': [7.2906, 80.6337],
+            },
+            galle: {
+                'galle fort': [6.0261, 80.2168], 'karapitiya': [6.0745, 80.2350],
+                'habaraduwa': [5.9950, 80.3010], 'galle': [6.0535, 80.2210],
+            },
+            jaffna: {
+                'jaffna fort': [9.6650, 80.0092], 'nallur': [9.6747, 80.0257],
+                'chunnakam': [9.7451, 80.0217], 'jaffna': [9.6615, 80.0255],
+            },
+        };
+
+        let leafletMap = null;
+        let markerLayer = null;
+
+        function initMap() {
+            leafletMap = L.map('map');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 18,
+            }).addTo(leafletMap);
+            markerLayer = L.layerGroup().addTo(leafletMap);
+            leafletMap.setView([7.5, 80.5], 7);
+        }
+
+        function titleCase(s) {
+            return s.replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function updateMap(cityId, insightsText, airQuality, weather) {
+            if (!leafletMap) return;
+            markerLayer.clearLayers();
+
+            const locations = KNOWN_LOCATIONS[cityId] || {};
+            const landmarks = Object.entries(locations).filter(([name]) => name !== cityId);
+            const lowerText = (insightsText || '').toLowerCase();
+            const matched = landmarks.filter(([name]) => lowerText.includes(name));
+            const pins = matched.length ? matched : (locations[cityId] ? [[cityId, locations[cityId]]] : []);
+
+            const popupHtml = (label) => `
+                <div class="map-popup-title">${label}</div>
+                <div>PM2.5: ${airQuality.pm2_5 ?? '--'} µg/m³ &middot; PM10: ${airQuality.pm10 ?? '--'} µg/m³</div>
+                <div>NO&#8322;: ${airQuality.nitrogen_dioxide ?? '--'} µg/m³ &middot; O&#8323;: ${airQuality.ozone ?? '--'} µg/m³</div>
+                <div>Temp: ${weather.temperature_2m ?? '--'}&deg;C &middot; Humidity: ${weather.relative_humidity_2m ?? '--'}%</div>
+                <div class="map-popup-note">City-wide reading - not hyperlocal to this point.</div>
+            `;
+
+            const bounds = [];
+            pins.forEach(([name, coords]) => {
+                if (!coords) return;
+                L.marker(coords).addTo(markerLayer).bindPopup(popupHtml(titleCase(name)));
+                bounds.push(coords);
+            });
+
+            if (bounds.length === 1) leafletMap.setView(bounds[0], 12);
+            else if (bounds.length > 1) leafletMap.fitBounds(bounds, { padding: [30, 30] });
+            else leafletMap.setView([7.5, 80.5], 7);
+
+            leafletMap.invalidateSize();
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             initAQIGauge();
+            initMap();
+            loadCities();
             document.querySelectorAll('#insights-tabs .tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('#insights-tabs .tab-btn').forEach(b => b.classList.remove('active'));
@@ -788,7 +1027,7 @@
         async function loadHistory(range) {
             currentRange = range;
             try {
-                const res = await fetch(`/api/history?range=${range}`);
+                const res = await fetch(`/api/history?range=${range}&city=${currentCity}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 renderTrendCharts(data.readings, range);
@@ -821,7 +1060,7 @@
 
         async function loadTrendDeltas(currentAirQuality, currentWeather) {
             try {
-                const res = await fetch('/api/history?range=24h');
+                const res = await fetch(`/api/history?range=24h&city=${currentCity}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (!data.readings.length) return;
@@ -838,11 +1077,13 @@
         // ---------------------------------------------------------------
         async function fetchDashboardData() {
             try {
-                const response = await fetch('/api/environmental-data');
+                const response = await fetch(`/api/environmental-data?city=${currentCity}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                lastAirQuality = data.air_quality;
+                lastInsightsText = data.insights;
 
                 // Populate Location and Time
                 document.getElementById('location-name').textContent = data.location;
@@ -877,15 +1118,23 @@
                 // AI Insights, split into tabs
                 renderInsights(data.insights);
 
-                // UI State Toggle - charts are created below, after the dashboard
-                // (and its canvases) are actually visible, so Chart.js doesn't
-                // size them against a 0x0 hidden container.
+                // Alert thresholds (WHO defaults from the server, merged with
+                // any browser-local overrides) and the banner they drive
+                if (data.alert_thresholds) renderThresholdInputs(data.alert_thresholds);
+                checkAlerts(data.air_quality, data.insights);
+
+                // UI State Toggle - charts/map are created below, after the
+                // dashboard (and its containers) are actually visible, so
+                // Chart.js/Leaflet don't size against a 0x0 hidden container.
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
 
                 // Historical trends, forecast, and day-over-day trend arrows
                 loadHistory(currentRange);
                 loadTrendDeltas(data.air_quality, data.weather);
+
+                // Monitoring-location map pins from the mitigation section
+                updateMap(currentCity, data.insights, data.air_quality, data.weather);
 
             } catch (error) {
                 console.error("Failed to fetch data:", error);

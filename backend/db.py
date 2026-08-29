@@ -122,3 +122,24 @@ def get_history(city: str, range_key: str) -> list[dict]:
             cols = [d.name for d in cur.description]
             rows = cur.fetchall()
     return [dict(zip(cols, row)) for row in rows]
+
+
+def get_latest_reading(city: str) -> dict | None:
+    """Most recent reading for `city` before any new insert - used to detect
+    whether a threshold breach is new (edge-triggered alerting) or ongoing."""
+    if not is_configured():
+        return None
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT recorded_at, {", ".join(READING_COLUMNS)}
+                FROM readings
+                WHERE city = %s
+                ORDER BY recorded_at DESC
+                LIMIT 1
+            """, (city,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [d.name for d in cur.description]
+            return dict(zip(cols, row))

@@ -1,16 +1,18 @@
 # Sri Lanka ESG AI Monitor
 
-A live environmental dashboard for Colombo, Sri Lanka. It pulls real-time air quality and weather data from [Open-Meteo](https://open-meteo.com/) and uses an LLM (via [OpenRouter](https://openrouter.ai/)) to generate ESG (Environmental, Social, Governance) analysis and mitigation recommendations from that data.
+A live environmental dashboard for four Sri Lankan cities (Colombo, Kandy, Galle, Jaffna). It pulls real-time air quality and weather data from [Open-Meteo](https://open-meteo.com/) and uses an LLM (via [OpenRouter](https://openrouter.ai/)) to generate ESG (Environmental, Social, Governance) analysis and mitigation recommendations from that data.
 
 ## What it does
 
-- **Backend** (`backend/main.py`): a FastAPI server that exposes `GET /api/environmental-data`, which:
-  1. Fetches current air quality data (PM2.5, PM10, CO, NO₂, SO₂, ozone, UV index) for Colombo.
+- **Backend** (`backend/main.py`): a FastAPI server that exposes `GET /api/environmental-data?city=<id>`, which:
+  1. Fetches current air quality data (PM2.5, PM10, CO, NO₂, SO₂, ozone, UV index) for the requested city (`colombo`, `kandy`, `galle`, or `jaffna` — see `GET /api/cities`).
   2. Fetches current weather data (temperature, humidity, precipitation, wind speed).
   3. Sends both to an LLM with a prompt asking for an ESG analysis, 24-48 hour predictive trends, and 3 actionable mitigation measures.
-  4. Returns everything as JSON.
-- **Frontend** (`frontend/index.html`): a single static HTML page (Tailwind + vanilla JS + Chart.js) that calls the backend endpoints and renders the air quality, weather, AI insights, and historical trends as a dashboard. FastAPI serves it directly at `/` via `app.frontend()`, so the whole app runs from one server/port.
-- **Historical trends** (`backend/db.py`): every call to `/api/environmental-data` also writes a row to a Postgres `readings` table, and a daily Vercel Cron job (`GET /api/cron/collect`) guarantees at least one row per day even with no traffic. `GET /api/history?range=24h|7d|30d|90d` serves that data to the frontend's trend charts, a composite-AQI forecast chart (linear regression + confidence band), and the day-over-day trend arrows on each metric. All of this is optional — with no database configured, the app runs exactly as it did without it, just showing a "no historical data yet" state instead of charts.
+  4. Returns everything as JSON, along with the active alert thresholds.
+- **Frontend** (`frontend/index.html`): a single static HTML page (Tailwind + vanilla JS + Chart.js + Leaflet) that calls the backend endpoints and renders the air quality, weather, AI insights, historical trends, a monitoring-location map, and alert banner as a dashboard, with a city switcher. FastAPI serves it directly at `/` via `app.frontend()`, so the whole app runs from one server/port.
+- **Historical trends** (`backend/db.py`): every call to `/api/environmental-data` also writes a row to a Postgres `readings` table (per city), and a daily Vercel Cron job (`GET /api/cron/collect`) loops over all four cities to guarantee at least one row per city per day even with no traffic. `GET /api/history?range=24h|7d|30d|90d&city=<id>` serves that data to the frontend's trend charts, a composite-AQI forecast chart (linear regression + confidence band), and the day-over-day trend arrows on each metric. All of this is optional — with no database configured, the app runs exactly as it did without it, just showing a "no historical data yet" state instead of charts.
+- **Monitoring-location map** (`frontend/index.html`): a Leaflet + OpenStreetMap view that scans the AI's mitigation text for known place names (e.g. Galle Road, Kolonnawa) and drops a pin for each match found, falling back to a single city-center pin when none are mentioned. Each pin's popup shows the current city-wide reading — this isn't hyperlocal sensor data, just the same single reading the rest of the dashboard uses.
+- **Threshold alerts** (`backend/alerts.py`): every write to historical storage checks the new reading against WHO Air Quality Guideline levels. The in-app banner also checks against those thresholds (or your own overrides, stored in this browser only) and flags any "Key Risk Window" mentioned in the AI's predictive text. On the backend, a *new* threshold breach (edge-triggered — it won't re-alert every day a value stays elevated) sends an email via [Resend](https://resend.com/).
 
 ## Prerequisites
 
@@ -80,7 +82,22 @@ Trend charts, the AQI forecast, and the trend arrows all need somewhere to store
 
 For local development, set `DATABASE_URL` in your `.env` file pointing at any Postgres instance (e.g. a local one, or the same Neon database) to test these features outside of Vercel.
 
+## Email alerts setup
+
+`backend/alerts.py` sends an email via [Resend](https://resend.com/) whenever a new WHO threshold breach is detected during data collection (both on live page loads and the daily cron). Without this configured, breaches are just logged to the server console (`[alert stub] ...`) — nothing else changes.
+
+1. Create a [Resend](https://resend.com/) account and API key.
+2. Set these environment variables (in `.env` locally, and in Vercel project settings for production):
+   ```
+   RESEND_API_KEY=your_key_here
+   ALERT_EMAIL_TO=you@example.com
+   ```
+3. (Optional) `ALERT_EMAIL_FROM` defaults to `onboarding@resend.dev`, Resend's shared sandbox sender that works without verifying a domain. Set it to an address on your own verified domain once you have one.
+
+The default thresholds are the WHO Air Quality Guideline levels (`WHO_DEFAULT_THRESHOLDS` in `backend/main.py`). The in-app "Alert threshold settings" panel lets a visitor override these for their own browser (stored in `localStorage`), but that's independent of the server-side email thresholds — there's no user account system, so email alerts always use the WHO defaults for now.
+
 ## Notes
 
 - The default model is `minimax/minimax-m3:free` on OpenRouter (see `backend/main.py`). Swap the `model` field in `generate_insights()` for any other [OpenRouter model](https://openrouter.ai/models) you have access to.
-- Location is hardcoded to Colombo, Sri Lanka (`LATITUDE`/`LONGITUDE` constants in `backend/main.py`) — change these to monitor a different city.
+- Supported cities live in the `CITIES` dict in `backend/main.py` (id → display name + coordinates) — add an entry there to monitor another city. Verify Open-Meteo actually returns data for its coordinates first.
+- The map's known place names (`KNOWN_LOCATIONS` in `frontend/index.html`) are approximate, illustrative coordinates for well-known landmarks per city, not real sensor hardware locations.

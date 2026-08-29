@@ -1,0 +1,31 @@
+html, body, #root {
+  height: 100%;
+}
+
+.markdown-body h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+.markdown-body h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+.markdown-body h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+.markdown-body p { margin-bottom: 0.75rem; }
+.markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+.markdown-body strong { font-weight: bold; }
+
+.table-scroll { overflow-x: auto; }
+.markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.markdown-body th, .markdown-body td { border: 1px solid rgba(128, 128, 128, 0.3); padding: 0.5rem; text-align: left; }
+.markdown-body th { background: rgba(128, 128, 128, 0.08); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .markdown-body table, .markdown-body thead, .markdown-body tbody, .markdown-body th, .markdown-body td, .markdown-body tr {
+    display: block; width: 100%;
+  }
+  .markdown-body thead { display: none; }
+  .markdown-body tr { margin-bottom: 0.75rem; border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 0.5rem; padding: 0.5rem; }
+  .markdown-body td { border: none !important; position: relative; padding-left: 45%; min-height: 1.5rem; }
+  .markdown-body td[data-label]::before {
+    position: absolute; left: 0.5rem; top: 0.5rem; width: 40%;
+    font-weight: 600; opacity: 0.7; content: attr(data-label);
+  }
+}
+
+.map-popup-title { font-weight: 700; margin-bottom: 0.25rem; }
+.map-popup-note { font-size: 0.7rem; color: #6b7280; margin-top: 0.25rem; }

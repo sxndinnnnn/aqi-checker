@@ -325,7 +325,7 @@ def get_esg_score(city: str = DEFAULT_CITY, range: str = "30d"):
     result["range"] = range
     return result
 
-app.frontend("/", directory="frontend")
+app.frontend("/", directory="frontend/dist")
 
 if __name__ == "__main__":
     import uvicorn

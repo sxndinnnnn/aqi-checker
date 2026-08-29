@@ -9,7 +9,7 @@ A live environmental dashboard for four Sri Lankan cities (Colombo, Kandy, Galle
   2. Fetches current weather data (temperature, humidity, precipitation, wind speed).
   3. Sends both to an LLM with a prompt asking for an ESG analysis, 24-48 hour predictive trends, and 3 actionable mitigation measures.
   4. Returns everything as JSON, along with the active alert thresholds.
-- **Frontend** (`frontend/index.html`): a single static HTML page (Tailwind + vanilla JS + Chart.js + Leaflet) that calls the backend endpoints and renders the air quality, weather, AI insights, historical trends, a monitoring-location map, and alert banner as a dashboard, with a city switcher. FastAPI serves it directly at `/` via `app.frontend()`, so the whole app runs from one server/port.
+- **Frontend** (`frontend/`): a React + [MUI](https://mui.com/) single-page app (Vite build, Chart.js + Leaflet) that calls the backend endpoints and renders the air quality, weather, AI insights, historical trends, a monitoring-location map, and alert banner as a dashboard, with a city switcher. Vite builds it to `frontend/dist`, which FastAPI serves at `/` via `app.frontend()` — the whole app still ships as one server/port in production.
 - **Historical trends** (`backend/db.py`): every call to `/api/environmental-data` also writes a row to a Postgres `readings` table (per city), and a daily Vercel Cron job (`GET /api/cron/collect`) loops over all four cities to guarantee at least one row per city per day even with no traffic. `GET /api/history?range=24h|7d|30d|90d&city=<id>` serves that data to the frontend's trend charts, a composite-AQI forecast chart (linear regression + confidence band), and the day-over-day trend arrows on each metric. All of this is optional — with no database configured, the app runs exactly as it did without it, just showing a "no historical data yet" state instead of charts.
 - **Monitoring-location map** (`frontend/index.html`): a Leaflet + OpenStreetMap view that scans the AI's mitigation text for known place names (e.g. Galle Road, Kolonnawa) and drops a pin for each match found, falling back to a single city-center pin when none are mentioned. Each pin's popup shows the current city-wide reading — this isn't hyperlocal sensor data, just the same single reading the rest of the dashboard uses.
 - **Threshold alerts** (`backend/alerts.py`): every write to historical storage checks the new reading against WHO Air Quality Guideline levels. The in-app banner also checks against those thresholds (or your own overrides, stored in this browser only) and flags any "Key Risk Window" mentioned in the AI's predictive text. On the backend, a *new* threshold breach (edge-triggered — it won't re-alert every day a value stays elevated) sends an email via [Resend](https://resend.com/).
@@ -22,6 +22,7 @@ A live environmental dashboard for four Sri Lankan cities (Colombo, Kandy, Galle
 ## Prerequisites
 
 - Python 3.10+
+- Node.js 18+ (for the frontend build)
 - An [OpenRouter](https://openrouter.ai/keys) API key (optional — the app runs fine without one, it just skips the AI insights section)
 - A Postgres database (optional — needed only for historical trends/charts; see [Historical trends setup](#historical-trends-setup) below)
 
@@ -34,7 +35,7 @@ A live environmental dashboard for four Sri Lankan cities (Colombo, Kandy, Galle
    cd aqi-checker
    ```
 
-2. **Create a virtual environment and install dependencies**
+2. **Create a virtual environment and install backend dependencies**
 
    ```bash
    python -m venv venv
@@ -56,17 +57,27 @@ A live environmental dashboard for four Sri Lankan cities (Colombo, Kandy, Galle
 
    Without this, `/api/environmental-data` still returns live air quality and weather data — the `insights` field just explains that generation is disabled.
 
-4. **Run the app**
+4. **Run the backend**
 
    ```bash
    python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
    ```
 
-   Open `http://localhost:8000` in your browser — FastAPI serves both the dashboard and the `/api/environmental-data` endpoint from this one server.
+5. **Run the frontend** (separate terminal)
+
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+   Open the URL Vite prints (typically `http://localhost:5173`) — its dev server proxies `/api/*` to the backend on port 8000 (see `frontend/vite.config.js`), with hot-reload for React changes.
+
+   For a production-style single-server check, `npm run build` inside `frontend/` outputs to `frontend/dist`, which the FastAPI backend serves directly at `http://localhost:8000` via `app.frontend()`.
 
 ## Deploying to Vercel
 
-The repo already includes `pyproject.toml` (points Vercel at the `app` instance in `backend/main.py`) and `vercel.json` (raises the function timeout to 60s, since the AI call can take 15-20s on free-tier models). Connect the repo in the Vercel dashboard, or run:
+The repo includes `pyproject.toml` (points Vercel at the `app` instance in `backend/main.py`), `vercel.json` (a `buildCommand` that runs `npm install && npm run build` in `frontend/` before the Python function is packaged, a 60s function timeout since the AI call can take 15-20s on free-tier models, and `excludeFiles` so `frontend/node_modules`/`src` don't bloat the function bundle — only the built `frontend/dist` is needed at runtime). Connect the repo in the Vercel dashboard, or run:
 
 ```bash
 vc deploy
@@ -109,10 +120,12 @@ The ESG score methodology is intentionally simple and disclosed in full in the U
 
 ## Translation caveat
 
-The Sinhala and Tamil strings in `TRANSLATIONS` (`frontend/index.html`) were generated by the AI, not reviewed by a native speaker. Have someone verify them before using the language toggle in any official or public-facing context. Coverage is intentionally scoped to section headers, metric names, tab names, and the status legend — the AI-generated insight text and per-badge status words (Good/Moderate/Unhealthy on each metric) stay in English.
+The Sinhala and Tamil strings in `TRANSLATIONS` (`frontend/src/i18n.js`) were generated by the AI, not reviewed by a native speaker. Have someone verify them before using the language toggle in any official or public-facing context. Coverage is intentionally scoped to section headers, metric names, tab names, and the status legend — the AI-generated insight text and per-badge status words (Good/Moderate/Unhealthy on each metric) stay in English.
 
 ## Notes
 
 - The default model is `minimax/minimax-m3:free` on OpenRouter (see `backend/main.py`). Swap the `model` field in `generate_insights()` for any other [OpenRouter model](https://openrouter.ai/models) you have access to.
 - Supported cities live in the `CITIES` dict in `backend/main.py` (id → display name + coordinates) — add an entry there to monitor another city. Verify Open-Meteo actually returns data for its coordinates first.
-- The map's known place names (`KNOWN_LOCATIONS` in `frontend/index.html`) are approximate, illustrative coordinates for well-known landmarks per city, not real sensor hardware locations.
+- The map's known place names (`KNOWN_LOCATIONS` in `frontend/src/metrics.js`) are approximate, illustrative coordinates for well-known landmarks per city, not real sensor hardware locations.
+- The frontend is a Vite + React app under `frontend/src/`: `App.jsx` holds the data-fetching/state, `theme.js` is the MUI theme (light/dark palettes), `components/` holds one file per dashboard section, and `utils/` has the pure-logic pieces (AQI math, forecast regression, CSV/PDF export, markdown splitting) ported from the original vanilla-JS implementation.
+- The production bundle is a bit large (Chart.js + Leaflet + MUI + jsPDF all in one ~1.3MB chunk) — Vite's build warns about this. Code-splitting with dynamic `import()` would help if load time becomes a concern; not done yet.

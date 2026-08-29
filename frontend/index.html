@@ -7,9 +7,55 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        :root {
+            --bg: #f3f4f6; --card-bg: #ffffff; --card-bg-alt: #f9fafb;
+            --text-primary: #111827; --text-secondary: #4b5563; --text-muted: #6b7280;
+            --border: #e5e7eb; --border-strong: #d1d5db;
+            --metric-blue: #eff6ff; --metric-yellow: #fefce8;
+        }
+        html.dark {
+            --bg: #0f172a; --card-bg: #1e293b; --card-bg-alt: #16213a;
+            --text-primary: #f1f5f9; --text-secondary: #cbd5e1; --text-muted: #94a3b8;
+            --border: #334155; --border-strong: #475569;
+            --metric-blue: #1e2937; --metric-yellow: #29271f;
+        }
+        body { background: var(--bg); color: var(--text-primary); }
+        html.dark .bg-gray-100 { background-color: var(--bg) !important; }
+        html.dark .bg-white { background-color: var(--card-bg) !important; }
+        html.dark .bg-gray-50 { background-color: var(--card-bg-alt) !important; }
+        html.dark .text-gray-900, html.dark .text-gray-800, html.dark .text-gray-700 { color: var(--text-primary) !important; }
+        html.dark .text-gray-600 { color: var(--text-secondary) !important; }
+        html.dark .text-gray-500, html.dark .text-gray-400 { color: var(--text-muted) !important; }
+        html.dark .border-gray-300, html.dark .border-gray-200, html.dark .border-gray-100 { border-color: var(--border) !important; }
+        html.dark .bg-blue-50 { background-color: var(--metric-blue) !important; }
+        html.dark .bg-yellow-50 { background-color: var(--metric-yellow) !important; }
+        html.dark .bg-green-50 { background-color: #052e1a !important; }
+        html.dark .bg-indigo-50 { background-color: #1e1b4b !important; }
+        html.dark .bg-teal-50 { background-color: #042f2e !important; }
+        html.dark .bg-emerald-50 { background-color: #022c22 !important; }
+        html.dark .bg-red-50, html.dark .bg-red-100 { background-color: #450a0a !important; }
+        html.dark .text-blue-800 { color: #93c5fd !important; }
+        html.dark .text-yellow-800 { color: #fde68a !important; }
+        html.dark .text-green-900 { color: #86efac !important; }
+        html.dark .text-indigo-900 { color: #a5b4fc !important; }
+        html.dark .text-teal-900 { color: #5eead4 !important; }
+        html.dark .text-emerald-900 { color: #6ee7b7 !important; }
+        html.dark .text-red-800, html.dark .text-red-700 { color: #fca5a5 !important; }
+        html.dark .shadow, html.dark .shadow-lg { box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important; }
+        html.dark input, html.dark select, html.dark textarea { background: var(--card-bg); border-color: var(--border-strong); color: var(--text-primary); }
+        html.dark .tab-btn { background: #334155; color: var(--text-secondary); }
+        html.dark .tab-btn.active { background: #16a34a; color: #fff; }
+        html.dark .chart-card { background: var(--card-bg-alt); border-color: var(--border); }
+        html.dark .markdown-body th { background: var(--card-bg-alt); }
+        html.dark .markdown-body th, html.dark .markdown-body td { border-color: var(--border) !important; }
+        html.dark .markdown-body strong { color: var(--text-primary); }
+
         .markdown-body h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
         .markdown-body h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
         .markdown-body h3 { font-size: 1.125rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
@@ -17,44 +63,39 @@
         .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
         .markdown-body strong { font-weight: bold; color: #2d3748; }
 
-        /* Status badges (WHO/EPA-derived, 3-tier) */
+        /* Status badges (WHO/EPA-derived, 3-tier). Tailwind's 100/800 pairings -
+           verified to meet WCAG AA contrast (>=4.5:1) for normal text. */
         .badge-pill { display: inline-block; font-size: 0.65rem; line-height: 1rem; padding: 0.125rem 0.5rem; border-radius: 9999px; font-weight: 600; white-space: nowrap; }
         .badge-good { background: #dcfce7; color: #166534; }
         .badge-moderate { background: #fef3c7; color: #92400e; }
         .badge-poor { background: #fee2e2; color: #991b1b; }
         .legend-dot { width: 0.65rem; height: 0.65rem; border-radius: 9999px; display: inline-block; }
 
-        /* Trend indicators - wired to real day-over-day deltas (Phase 2) */
         .metric-trend { font-weight: 700; }
 
-        /* Historical trend charts */
-        .chart-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem; height: 180px; display: flex; flex-direction: column; }
+        .chart-card { position: relative; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem; height: 180px; display: flex; flex-direction: column; }
         .chart-card canvas { flex: 1; width: 100% !important; height: 100% !important; }
-        .chart-title { font-size: 0.7rem; color: #6b7280; font-weight: 600; margin-bottom: 0.25rem; }
+        .chart-title { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.25rem; }
 
-        /* AQI gauge */
         .aqi-gauge-wrap { text-align: center; }
         #aqi-value { font-size: 2rem; font-weight: 800; fill: #111827; }
-        #aqi-category-text { font-size: 0.6rem; font-weight: 600; fill: #4b5563; }
+        html.dark #aqi-value { fill: #f1f5f9; }
 
-        /* AI insight tabs */
         .tab-btn { padding: 0.375rem 0.9rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; background: #f3f4f6; color: #374151; border: 1px solid transparent; cursor: pointer; }
         .tab-btn.active { background: #16a34a; color: #fff; }
+        .tab-btn:focus-visible { outline: 2px solid #16a34a; outline-offset: 2px; }
         .tab-panel.hidden { display: none; }
 
-        /* City switcher */
-        #city-select { font-weight: 700; font-size: 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.25rem 0.5rem; background: #fff; }
+        #city-select, #lang-select { font-weight: 700; font-size: 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.25rem 0.5rem; background: #fff; }
+        #lang-select { font-weight: 600; font-size: 0.85rem; }
 
-        /* Alert banner + threshold settings */
         #alert-banner { border-left: 4px solid #dc2626; }
         .threshold-input { width: 5.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; padding: 0.15rem 0.4rem; font-size: 0.85rem; }
 
-        /* Map */
         #map { height: 320px; border-radius: 0.5rem; z-index: 0; }
         .map-popup-title { font-weight: 700; margin-bottom: 0.25rem; }
         .map-popup-note { font-size: 0.7rem; color: #6b7280; margin-top: 0.25rem; }
 
-        /* Responsive tables inside AI insight content */
         .table-scroll { overflow-x: auto; }
         .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
         .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: left; }
@@ -72,14 +113,31 @@
                 font-weight: 600; color: #4b5563; content: attr(data-label);
             }
         }
+
+        /* Mitigation tracking */
+        .mitigation-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; }
+
+        /* Loading skeletons */
+        .refresh-spinner { display: inline-block; width: 0.85rem; height: 0.85rem; border: 2px solid var(--border-strong); border-top-color: #16a34a; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-left: 0.4rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .section-spinner { display: none; }
+        .section-spinner.active { display: inline-block; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
 
     <nav class="bg-green-700 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
+        <div class="container mx-auto flex justify-between items-center gap-3">
             <h1 class="text-2xl font-bold">🌱 Sri Lanka ESG AI Monitor</h1>
-            <span class="text-sm hidden sm:inline">Real-time Environmental Insights</span>
+            <div class="flex items-center gap-3">
+                <span class="text-sm hidden sm:inline" data-i18n="subtitle">Real-time Environmental Insights</span>
+                <select id="lang-select" aria-label="Language">
+                    <option value="en">EN</option>
+                    <option value="si">සිං</option>
+                    <option value="ta">தமிழ்</option>
+                </select>
+                <button id="theme-toggle" class="text-xl leading-none" aria-label="Toggle dark mode" title="Toggle dark mode">🌙</button>
+            </div>
         </div>
     </nav>
 
@@ -100,25 +158,32 @@
                         <select id="city-select" aria-label="Select city"></select>
                     </div>
                     <span class="text-gray-500 text-sm" id="timestamp"></span>
+                    <span class="refresh-spinner" id="refresh-spinner" aria-hidden="true"></span>
                 </div>
 
-                <!-- Composite AQI gauge (US EPA AQI formula) -->
-                <div class="aqi-gauge-wrap">
-                    <svg id="aqi-svg" viewBox="0 0 200 120" class="w-40 h-24 mx-auto md:mx-0"></svg>
-                    <div class="text-sm font-bold text-gray-800" id="aqi-category-label">--</div>
-                    <div class="text-[0.65rem] text-gray-400" id="aqi-dominant">Composite AQI</div>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-2">
+                        <button id="export-pdf-btn" class="text-xs bg-gray-700 text-white px-3 py-1.5 rounded hover:bg-gray-800" data-i18n="exportPdf">Export PDF</button>
+                        <button id="export-csv-btn" class="text-xs bg-gray-500 text-white px-3 py-1.5 rounded hover:bg-gray-600" data-i18n="exportCsv">Export CSV</button>
+                    </div>
+                    <!-- Composite AQI gauge (US EPA AQI formula) -->
+                    <div class="aqi-gauge-wrap">
+                        <svg id="aqi-svg" viewBox="0 0 200 120" class="w-40 h-24 mx-auto md:mx-0" role="img" aria-label="Composite air quality index gauge"></svg>
+                        <div class="text-sm font-bold text-gray-800" id="aqi-category-label">--</div>
+                        <div class="text-[0.65rem] text-gray-400" id="aqi-dominant">Composite AQI</div>
+                    </div>
                 </div>
             </div>
 
             <!-- Alert banner: threshold breaches / Key Risk Window -->
-            <div id="alert-banner" class="hidden bg-red-50 text-red-800 rounded p-4 mb-4">
+            <div id="alert-banner" class="hidden bg-red-50 text-red-800 rounded p-4 mb-4" role="alert">
                 <div class="font-bold flex items-center gap-2">⚠ <span id="alert-banner-title">Alert</span></div>
                 <ul id="alert-banner-list" class="text-sm mt-1 ml-6 list-disc"></ul>
             </div>
 
             <!-- Alert threshold settings -->
             <details class="mb-4 text-sm bg-white border border-gray-200 rounded-lg p-3">
-                <summary class="cursor-pointer font-semibold text-gray-700">Alert threshold settings</summary>
+                <summary class="cursor-pointer font-semibold text-gray-700" data-i18n="alertThresholdSettings">Alert threshold settings</summary>
                 <p class="text-xs text-gray-500 mt-2 mb-3">Defaults to WHO Air Quality Guideline levels (µg/m³). Overrides are saved in this browser only.</p>
                 <div id="threshold-inputs" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
                 <button id="threshold-reset" class="mt-3 text-xs text-indigo-600 hover:underline">Reset to WHO defaults</button>
@@ -126,10 +191,10 @@
 
             <!-- Legend -->
             <div class="flex flex-wrap gap-4 items-center text-xs text-gray-600 mb-3">
-                <span class="font-semibold">Status legend:</span>
-                <span class="flex items-center gap-1"><span class="legend-dot bg-green-500"></span> Good</span>
-                <span class="flex items-center gap-1"><span class="legend-dot bg-amber-500"></span> Moderate</span>
-                <span class="flex items-center gap-1"><span class="legend-dot bg-red-500"></span> Poor / Unhealthy</span>
+                <span class="font-semibold" data-i18n="statusLegend">Status legend:</span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-green-500"></span> <span data-i18n="good">Good</span></span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-amber-500"></span> <span data-i18n="moderate">Moderate</span></span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-red-500"></span> <span data-i18n="poorUnhealthy">Poor / Unhealthy</span></span>
             </div>
             <p class="text-[0.65rem] text-gray-400 mb-4">
                 Badges approximate WHO/EPA guidance using instantaneous readings (official AQI categories use 24-hour or 8-hour averages).
@@ -142,113 +207,18 @@
                 <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
                     <h3 class="text-xl font-bold mb-4 flex items-center text-blue-800">
                         <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-                        Air Quality Metrics
+                        <span data-i18n="airQualityMetrics">Air Quality Metrics</span>
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div class="bg-blue-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">PM 2.5</span>
-                                <span class="badge-pill" id="pm25-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="pm25">--</span>
-                                <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="pm25-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-blue-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">PM 10</span>
-                                <span class="badge-pill" id="pm10-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="pm10">--</span>
-                                <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="pm10-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-blue-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">Nitrogen Dioxide (NO₂)</span>
-                                <span class="badge-pill" id="no2-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="no2">--</span>
-                                <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="no2-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-blue-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">Ozone (O₃)</span>
-                                <span class="badge-pill" id="o3-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="o3">--</span>
-                                <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="o3-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-blue-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">Carbon Monoxide (CO)</span>
-                                <span class="badge-pill" id="co-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="co">--</span>
-                                <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="co-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="air-metrics-grid"></div>
                 </div>
 
                 <!-- Weather Card -->
                 <div class="bg-white rounded-lg shadow p-6 border-t-4 border-yellow-500">
                     <h3 class="text-xl font-bold mb-4 flex items-center text-yellow-800">
                         <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                        Climate/Weather
+                        <span data-i18n="climateWeather">Climate/Weather</span>
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="bg-yellow-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">Temperature</span>
-                                <span class="badge-pill" id="temp-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="temp">--</span>
-                                <span class="text-xs text-gray-500">°C</span>
-                                <span class="metric-trend hidden ml-1" id="temp-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-yellow-50 p-3 rounded">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-sm text-gray-500">Humidity</span>
-                                <span class="badge-pill" id="humidity-badge">--</span>
-                            </div>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="humidity">--</span>
-                                <span class="text-xs text-gray-500">%</span>
-                                <span class="metric-trend hidden ml-1" id="humidity-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-yellow-50 p-3 rounded">
-                            <span class="block text-sm text-gray-500">Wind Speed</span>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="wind">--</span>
-                                <span class="text-xs text-gray-500">km/h</span>
-                                <span class="metric-trend hidden ml-1" id="wind-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                        <div class="bg-yellow-50 p-3 rounded">
-                            <span class="block text-sm text-gray-500">Precipitation</span>
-                            <div class="flex items-baseline gap-1">
-                                <span class="font-bold text-lg" id="precip">--</span>
-                                <span class="text-xs text-gray-500">mm</span>
-                                <span class="metric-trend hidden ml-1" id="precip-trend" title="Trend vs ~24h ago">→</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="weather-metrics-grid"></div>
                 </div>
             </div>
 
@@ -262,19 +232,19 @@
                         </h3>
                         <span class="badge-pill" style="background:#fef9c3;color:#854d0e;">⚠ AI-generated — verify before use in official reporting</span>
                     </div>
-                    <div id="insights-tabs" class="flex flex-wrap gap-2 mt-4" role="tablist">
-                        <button class="tab-btn active" data-tab="current" role="tab" aria-selected="true">Current Situation</button>
-                        <button class="tab-btn" data-tab="predictive" role="tab" aria-selected="false">Predictive Insights</button>
-                        <button class="tab-btn" data-tab="mitigation" role="tab" aria-selected="false">Mitigation Measures</button>
-                        <button class="tab-btn" data-tab="summary" role="tab" aria-selected="false">Summary</button>
+                    <div id="insights-tabs" class="flex flex-wrap gap-2 mt-4" role="tablist" aria-label="Insight sections">
+                        <button id="tab-btn-current" class="tab-btn active" data-tab="current" role="tab" aria-selected="true" aria-controls="tab-panel-current" tabindex="0" data-i18n="tabCurrent">Current Situation</button>
+                        <button id="tab-btn-predictive" class="tab-btn" data-tab="predictive" role="tab" aria-selected="false" aria-controls="tab-panel-predictive" tabindex="-1" data-i18n="tabPredictive">Predictive Insights</button>
+                        <button id="tab-btn-mitigation" class="tab-btn" data-tab="mitigation" role="tab" aria-selected="false" aria-controls="tab-panel-mitigation" tabindex="-1" data-i18n="tabMitigation">Mitigation Measures</button>
+                        <button id="tab-btn-summary" class="tab-btn" data-tab="summary" role="tab" aria-selected="false" aria-controls="tab-panel-summary" tabindex="-1" data-i18n="tabSummary">Summary</button>
                     </div>
                 </div>
                 <div class="p-6">
-            <div class="tab-panel markdown-body" id="tab-panel-current"></div>
-                    <div class="tab-panel hidden" id="tab-panel-predictive">
+                    <div class="tab-panel markdown-body" id="tab-panel-current" role="tabpanel" aria-labelledby="tab-btn-current"></div>
+                    <div class="tab-panel hidden" id="tab-panel-predictive" role="tabpanel" aria-labelledby="tab-btn-predictive">
                         <div class="chart-card mb-4" style="height: 220px;">
                             <span class="chart-title">Composite AQI Forecast (next 48h)</span>
-                            <canvas id="chart-forecast"></canvas>
+                            <canvas id="chart-forecast" role="img" aria-label="Composite AQI forecast chart, historical and next 48 hours"></canvas>
                         </div>
                         <p id="forecast-empty" class="hidden text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded p-4 mb-4">
                             Not enough historical data yet to forecast a trend - check back after a few days of data collection.
@@ -284,8 +254,12 @@
                             <div class="markdown-body mt-2" id="predictive-rationale"></div>
                         </details>
                     </div>
-                    <div class="tab-panel markdown-body hidden" id="tab-panel-mitigation"></div>
-                    <div class="tab-panel markdown-body hidden" id="tab-panel-summary"></div>
+                    <div class="tab-panel hidden" id="tab-panel-mitigation" role="tabpanel" aria-labelledby="tab-btn-mitigation">
+                        <div id="mitigation-empty" class="hidden text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded p-4 mb-4"></div>
+                        <div id="mitigation-list" class="space-y-4"></div>
+                        <button id="mitigation-generate-more" class="mt-4 text-sm text-indigo-600 hover:underline hidden">+ Suggest more measures</button>
+                    </div>
+                    <div class="tab-panel markdown-body hidden" id="tab-panel-summary" role="tabpanel" aria-labelledby="tab-btn-summary"></div>
                 </div>
             </div>
 
@@ -294,12 +268,12 @@
                 <div class="bg-teal-50 p-4 border-b border-gray-200">
                     <h3 class="text-xl font-bold flex items-center text-teal-900">
                         <svg class="w-6 h-6 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        Monitoring Locations
+                        <span data-i18n="monitoringLocations">Monitoring Locations</span>
                     </h3>
                     <p class="text-xs text-gray-500 mt-1">Pins mark locations mentioned in the AI's mitigation section for the current city. Metrics shown are the city-wide reading, not hyperlocal sensor data.</p>
                 </div>
                 <div class="p-6">
-                    <div id="map"></div>
+                    <div id="map" role="application" aria-label="Map of monitoring locations for the current city"></div>
                 </div>
             </div>
 
@@ -308,13 +282,14 @@
                 <div class="bg-indigo-50 p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
                     <h3 class="text-xl font-bold flex items-center text-indigo-900">
                         <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                        Historical Trends
+                        <span data-i18n="historicalTrends">Historical Trends</span>
+                        <span class="section-spinner refresh-spinner" id="history-spinner" aria-hidden="true"></span>
                     </h3>
-                    <div class="flex gap-2" id="range-selector" role="tablist">
-                        <button class="tab-btn" data-range="24h" role="tab">24h</button>
-                        <button class="tab-btn active" data-range="7d" role="tab">7d</button>
-                        <button class="tab-btn" data-range="30d" role="tab">30d</button>
-                        <button class="tab-btn" data-range="90d" role="tab">90d</button>
+                    <div class="flex gap-2" id="range-selector" role="group" aria-label="Select time range">
+                        <button class="tab-btn" data-range="24h" aria-pressed="false">24h</button>
+                        <button class="tab-btn active" data-range="7d" aria-pressed="true">7d</button>
+                        <button class="tab-btn" data-range="30d" aria-pressed="false">30d</button>
+                        <button class="tab-btn" data-range="90d" aria-pressed="false">90d</button>
                     </div>
                 </div>
                 <div class="p-6">
@@ -324,19 +299,50 @@
                     <div id="history-charts">
                         <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Air Quality</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                            <div class="chart-card"><span class="chart-title">PM2.5 (µg/m³)</span><canvas id="chart-pm25"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">PM10 (µg/m³)</span><canvas id="chart-pm10"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">NO₂ (µg/m³)</span><canvas id="chart-no2"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">O₃ (µg/m³)</span><canvas id="chart-o3"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">CO (µg/m³)</span><canvas id="chart-co"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">PM2.5 (µg/m³)</span><canvas id="chart-pm25" role="img" aria-label="PM2.5 historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">PM10 (µg/m³)</span><canvas id="chart-pm10" role="img" aria-label="PM10 historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">NO₂ (µg/m³)</span><canvas id="chart-no2" role="img" aria-label="Nitrogen dioxide historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">O₃ (µg/m³)</span><canvas id="chart-o3" role="img" aria-label="Ozone historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">CO (µg/m³)</span><canvas id="chart-co" role="img" aria-label="Carbon monoxide historical trend chart"></canvas></div>
                         </div>
                         <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Weather</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div class="chart-card"><span class="chart-title">Temperature (°C)</span><canvas id="chart-temp"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">Humidity (%)</span><canvas id="chart-humidity"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">Wind Speed (km/h)</span><canvas id="chart-wind"></canvas></div>
-                            <div class="chart-card"><span class="chart-title">Precipitation (mm)</span><canvas id="chart-precip"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Temperature (°C)</span><canvas id="chart-temp" role="img" aria-label="Temperature historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Humidity (%)</span><canvas id="chart-humidity" role="img" aria-label="Humidity historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Wind Speed (km/h)</span><canvas id="chart-wind" role="img" aria-label="Wind speed historical trend chart"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Precipitation (mm)</span><canvas id="chart-precip" role="img" aria-label="Precipitation historical trend chart"></canvas></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ESG Score -->
+            <div class="bg-white rounded-lg shadow-lg border-t-4 border-emerald-500 mt-8">
+                <div class="bg-emerald-50 p-4 border-b border-gray-200">
+                    <h3 class="text-xl font-bold flex items-center text-emerald-900">
+                        <svg class="w-6 h-6 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span data-i18n="esgScore">ESG Score</span>
+                        <span class="section-spinner refresh-spinner" id="esg-spinner" aria-hidden="true"></span>
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1" id="esg-methodology"></p>
+                </div>
+                <div class="p-6">
+                    <div class="flex flex-col sm:flex-row items-center gap-6 mb-4">
+                        <div class="text-center">
+                            <div class="text-4xl font-extrabold" id="esg-score-value">--</div>
+                            <div class="text-xs text-gray-500">out of 100</div>
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <div>Environmental: <strong id="esg-env-component">--</strong> / 70</div>
+                            <div>Governance: <strong id="esg-gov-component">--</strong> / 30 (<span id="esg-measures-summary">--</span>)</div>
+                        </div>
+                    </div>
+                    <div id="esg-empty" class="hidden text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded p-4 mb-4">
+                        Not enough historical data yet to compute an ESG score.
+                    </div>
+                    <div class="chart-card" style="height:180px;">
+                        <span class="chart-title">ESG Score Trend</span>
+                        <canvas id="chart-esg-trend" role="img" aria-label="ESG score trend chart"></canvas>
                     </div>
                 </div>
             </div>
@@ -350,6 +356,102 @@
 
     <script>
         // ---------------------------------------------------------------
+        // Theme (dark mode)
+        // ---------------------------------------------------------------
+        function applyTheme(theme) {
+            document.documentElement.classList.toggle('dark', theme === 'dark');
+            document.getElementById('theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+            Chart.defaults.color = theme === 'dark' ? '#cbd5e1' : '#6b7280';
+            Chart.defaults.borderColor = theme === 'dark' ? '#334155' : '#e5e7eb';
+            Object.values(charts || {}).forEach(c => { if (c) c.update(); });
+        }
+
+        function initTheme() {
+            const stored = localStorage.getItem('theme');
+            const theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            applyTheme(theme);
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+                localStorage.setItem('theme', next);
+                applyTheme(next);
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Language toggle (Phase 5). Sinhala/Tamil strings are AI-generated,
+        // not reviewed by a native speaker - verify before official use.
+        // Scope: key section headers, metric names, tab names, and the
+        // static legend text. Dynamic AI-generated insight text and the
+        // per-badge status words stay in English.
+        // ---------------------------------------------------------------
+        const TRANSLATIONS = {
+            en: {
+                subtitle: 'Real-time Environmental Insights',
+                airQualityMetrics: 'Air Quality Metrics', climateWeather: 'Climate/Weather',
+                'metric.pm25': 'PM 2.5', 'metric.pm10': 'PM 10', 'metric.no2': 'Nitrogen Dioxide (NO₂)',
+                'metric.o3': 'Ozone (O₃)', 'metric.co': 'Carbon Monoxide (CO)', 'metric.temp': 'Temperature',
+                'metric.humidity': 'Humidity', 'metric.wind': 'Wind Speed', 'metric.precip': 'Precipitation',
+                good: 'Good', moderate: 'Moderate', poorUnhealthy: 'Poor / Unhealthy',
+                statusLegend: 'Status legend:',
+                tabCurrent: 'Current Situation', tabPredictive: 'Predictive Insights',
+                tabMitigation: 'Mitigation Measures', tabSummary: 'Summary',
+                historicalTrends: 'Historical Trends', monitoringLocations: 'Monitoring Locations',
+                esgScore: 'ESG Score', exportPdf: 'Export PDF', exportCsv: 'Export CSV',
+                alertThresholdSettings: 'Alert threshold settings',
+            },
+            si: {
+                subtitle: 'තථ්‍ය කාලීන පාරිසරික තොරතුරු',
+                airQualityMetrics: 'වායු තත්ත්ව මිනුම්', climateWeather: 'දේශගුණය/කාලගුණය',
+                'metric.pm25': 'PM 2.5', 'metric.pm10': 'PM 10', 'metric.no2': 'නයිට්‍රජන් ඩයොක්සයිඩ් (NO₂)',
+                'metric.o3': 'ඕසෝන් (O₃)', 'metric.co': 'කාබන් මොනොක්සයිඩ් (CO)', 'metric.temp': 'උෂ්ණත්වය',
+                'metric.humidity': 'ආර්ද්‍රතාවය', 'metric.wind': 'සුළං වේගය', 'metric.precip': 'වර්ෂාපතනය',
+                good: 'හොඳයි', moderate: 'මධ්‍යස්ථ', poorUnhealthy: 'දුර්වල / අනාරෝගී',
+                statusLegend: 'තත්ත්ව ලේබලය:',
+                tabCurrent: 'වත්මන් තත්ත්වය', tabPredictive: 'අනාවැකි විශ්ලේෂණය',
+                tabMitigation: 'අවම කිරීමේ පියවර', tabSummary: 'සාරාංශය',
+                historicalTrends: 'ඓතිහාසික ප්‍රවණතා', monitoringLocations: 'නිරීක්ෂණ ස්ථාන',
+                esgScore: 'ESG ලකුණු', exportPdf: 'PDF නිර්යාත කරන්න', exportCsv: 'CSV නිර්යාත කරන්න',
+                alertThresholdSettings: 'අනතුරු ඇඟවීම් සීමා සැකසුම්',
+            },
+            ta: {
+                subtitle: 'நேரடி சுற்றுச்சூழல் நுண்ணறிவு',
+                airQualityMetrics: 'காற்று தர அளவீடுகள்', climateWeather: 'காலநிலை/வானிலை',
+                'metric.pm25': 'PM 2.5', 'metric.pm10': 'PM 10', 'metric.no2': 'நைட்ரஜன் டை ஆக்சைடு (NO₂)',
+                'metric.o3': 'ஓசோன் (O₃)', 'metric.co': 'கார்பன் மோனாக்சைடு (CO)', 'metric.temp': 'வெப்பநிலை',
+                'metric.humidity': 'ஈரப்பதம்', 'metric.wind': 'காற்றின் வேகம்', 'metric.precip': 'மழைவீழ்ச்சி',
+                good: 'நல்லது', moderate: 'மிதமான', poorUnhealthy: 'மோசமான / ஆரோக்கியமற்ற',
+                statusLegend: 'நிலை விளக்கம்:',
+                tabCurrent: 'தற்போதைய நிலை', tabPredictive: 'முன்கணிப்பு பகுப்பாய்வு',
+                tabMitigation: 'தணிப்பு நடவடிக்கைகள்', tabSummary: 'சுருக்கம்',
+                historicalTrends: 'வரலாற்று போக்குகள்', monitoringLocations: 'கண்காணிப்பு இடங்கள்',
+                esgScore: 'ESG மதிப்பெண்', exportPdf: 'PDF ஏற்றுமதி', exportCsv: 'CSV ஏற்றுமதி',
+                alertThresholdSettings: 'எச்சரிக்கை வரம்பு அமைப்புகள்',
+            },
+        };
+
+        let currentLang = localStorage.getItem('lang') || 'en';
+
+        function t(key) {
+            return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || TRANSLATIONS.en[key] || key;
+        }
+
+        function applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+            renderMetricCards();
+            if (lastAirQuality) updateMetricValuesAndBadges(lastAirQuality, lastWeather);
+        }
+
+        function initLanguage() {
+            const select = document.getElementById('lang-select');
+            select.value = currentLang;
+            select.addEventListener('change', () => {
+                currentLang = select.value;
+                localStorage.setItem('lang', currentLang);
+                applyTranslations();
+            });
+        }
+
+        // ---------------------------------------------------------------
         // Status badges (WHO/EPA-derived, approximate, instantaneous data)
         // ---------------------------------------------------------------
         function classifyLadder(value, ladder) {
@@ -359,7 +461,6 @@
             return ladder[ladder.length - 1];
         }
 
-        // Ladders keyed on the raw µg/m³ values shown in the UI.
         const POLLUTANT_LADDERS = {
             pm25: [ { max: 12.0, cls: 'good', label: 'Good' }, { max: 35.4, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
             pm10: [ { max: 54, cls: 'good', label: 'Good' }, { max: 154, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
@@ -368,9 +469,9 @@
             co:   [ { max: 5038, cls: 'good', label: 'Good' }, { max: 10763, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
         };
 
-        function classifyTemp(t) {
-            if (t >= 18 && t <= 30) return { cls: 'good', label: 'Comfortable' };
-            if ((t >= 10 && t < 18) || (t > 30 && t <= 35)) return { cls: 'moderate', label: 'Caution' };
+        function classifyTemp(temp) {
+            if (temp >= 18 && temp <= 30) return { cls: 'good', label: 'Comfortable' };
+            if ((temp >= 10 && temp < 18) || (temp > 30 && temp <= 35)) return { cls: 'moderate', label: 'Caution' };
             return { cls: 'poor', label: 'Extreme' };
         }
 
@@ -385,6 +486,60 @@
             if (!el || !status) return;
             el.className = 'badge-pill badge-' + status.cls;
             el.textContent = status.label;
+        }
+
+        // ---------------------------------------------------------------
+        // Metric card component (Phase 5 - consolidates the previously
+        // hand-duplicated card markup into one generator driven by config).
+        // ---------------------------------------------------------------
+        const AIR_METRICS = [
+            { key: 'pm2_5', id: 'pm25', color: '#3b82f6', isPollutant: true, i18n: 'metric.pm25', unit: 'µg/m³', hasBadge: true },
+            { key: 'pm10', id: 'pm10', color: '#6366f1', isPollutant: true, i18n: 'metric.pm10', unit: 'µg/m³', hasBadge: true },
+            { key: 'nitrogen_dioxide', id: 'no2', color: '#8b5cf6', isPollutant: true, i18n: 'metric.no2', unit: 'µg/m³', hasBadge: true },
+            { key: 'ozone', id: 'o3', color: '#0ea5e9', isPollutant: true, i18n: 'metric.o3', unit: 'µg/m³', hasBadge: true },
+            { key: 'carbon_monoxide', id: 'co', color: '#14b8a6', isPollutant: true, i18n: 'metric.co', unit: 'µg/m³', hasBadge: true },
+        ];
+        const WEATHER_METRICS = [
+            { key: 'temperature_2m', id: 'temp', color: '#f59e0b', isPollutant: false, i18n: 'metric.temp', unit: '°C', hasBadge: true },
+            { key: 'relative_humidity_2m', id: 'humidity', color: '#0891b2', isPollutant: false, i18n: 'metric.humidity', unit: '%', hasBadge: true },
+            { key: 'wind_speed_10m', id: 'wind', color: '#84cc16', isPollutant: false, i18n: 'metric.wind', unit: 'km/h', hasBadge: false },
+            { key: 'precipitation', id: 'precip', color: '#2563eb', isPollutant: false, i18n: 'metric.precip', unit: 'mm', hasBadge: false },
+        ];
+        const ALL_METRICS = AIR_METRICS.concat(WEATHER_METRICS);
+
+        function metricCardHtml(m, bgClass) {
+            const badgeHtml = m.hasBadge ? `<span class="badge-pill" id="${m.id}-badge">--</span>` : '';
+            return `
+                <div class="${bgClass} p-3 rounded">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm text-gray-500">${t(m.i18n)}</span>
+                        ${badgeHtml}
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                        <span class="font-bold text-lg" id="${m.id}">--</span>
+                        <span class="text-xs text-gray-500">${m.unit}</span>
+                        <span class="metric-trend hidden ml-1" id="${m.id}-trend" title="Trend vs ~24h ago">→</span>
+                    </div>
+                </div>`;
+        }
+
+        function renderMetricCards() {
+            document.getElementById('air-metrics-grid').innerHTML = AIR_METRICS.map(m => metricCardHtml(m, 'bg-blue-50')).join('');
+            document.getElementById('weather-metrics-grid').innerHTML = WEATHER_METRICS.map(m => metricCardHtml(m, 'bg-yellow-50')).join('');
+        }
+
+        function updateMetricValuesAndBadges(airQuality, weather) {
+            AIR_METRICS.forEach(m => {
+                const el = document.getElementById(m.id);
+                if (el) el.textContent = airQuality[m.key];
+                setBadge(m.id + '-badge', classifyLadder(airQuality[m.key], POLLUTANT_LADDERS[m.id]));
+            });
+            const tempEl = document.getElementById('temp'); if (tempEl) tempEl.textContent = weather.temperature_2m;
+            const humEl = document.getElementById('humidity'); if (humEl) humEl.textContent = weather.relative_humidity_2m;
+            const windEl = document.getElementById('wind'); if (windEl) windEl.textContent = weather.wind_speed_10m;
+            const precipEl = document.getElementById('precip'); if (precipEl) precipEl.textContent = weather.precipitation;
+            setBadge('temp-badge', classifyTemp(weather.temperature_2m));
+            setBadge('humidity-badge', classifyHumidity(weather.relative_humidity_2m));
         }
 
         // ---------------------------------------------------------------
@@ -413,9 +568,9 @@
             const candidates = [
                 { name: 'PM2.5', aqi: subAQI(aq.pm2_5, AQI_BREAKPOINTS.pm25) },
                 { name: 'PM10', aqi: subAQI(aq.pm10, AQI_BREAKPOINTS.pm10) },
-                { name: 'CO', aqi: subAQI(aq.carbon_monoxide / 1145, AQI_BREAKPOINTS.co) },       // µg/m³ -> ppm
-                { name: 'NO₂', aqi: subAQI(aq.nitrogen_dioxide / 1.88, AQI_BREAKPOINTS.no2) },    // µg/m³ -> ppb
-                { name: 'O₃', aqi: subAQI(aq.ozone / 1960, AQI_BREAKPOINTS.o3) },                 // µg/m³ -> ppm
+                { name: 'CO', aqi: subAQI(aq.carbon_monoxide / 1145, AQI_BREAKPOINTS.co) },
+                { name: 'NO₂', aqi: subAQI(aq.nitrogen_dioxide / 1.88, AQI_BREAKPOINTS.no2) },
+                { name: 'O₃', aqi: subAQI(aq.ozone / 1960, AQI_BREAKPOINTS.o3) },
             ].filter(c => c.aqi != null);
             if (!candidates.length) return null;
             candidates.sort((a, b) => b.aqi - a.aqi);
@@ -431,7 +586,6 @@
             return { label: 'Hazardous', color: '#7f1d1d' };
         }
 
-        // Semicircle gauge geometry: phi 0 = left end, 90 = top, 180 = right end.
         function pointOnGauge(cx, cy, r, phiDeg) {
             const alpha = (180 - phiDeg) * Math.PI / 180;
             return { x: cx + r * Math.cos(alpha), y: cy - r * Math.sin(alpha) };
@@ -450,7 +604,6 @@
         function initAQIGauge() {
             const svg = document.getElementById('aqi-svg');
             const cx = 100, cy = 105, r = 80;
-            // AQI 0-500 mapped across 180 degrees; band edges at the standard category cutoffs.
             const bands = [
                 { from: 0, to: 50, color: '#22c55e' },
                 { from: 50, to: 100, color: '#eab308' },
@@ -520,6 +673,7 @@
             categoryLabelEl.textContent = category.label;
             categoryLabelEl.style.color = category.color;
             dominantEl.textContent = `Composite AQI · dominant: ${dominant}`;
+            document.getElementById('aqi-svg').setAttribute('aria-label', `Composite air quality index gauge: ${aqi}, ${category.label}, dominant pollutant ${dominant}`);
         }
 
         // ---------------------------------------------------------------
@@ -543,8 +697,6 @@
             });
         }
 
-        // Skip short "Label: value" metadata lines (timestamps, report headers)
-        // so the summary surfaces actual analysis instead of a date stamp.
         const METADATA_LINE = /^(timestamp|reporting time|report time|date|location)\s*:/i;
 
         function firstSnippet(nodes) {
@@ -562,30 +714,26 @@
             return null;
         }
 
+        // Note: mitigation measures are no longer parsed out of this
+        // markdown (Phase 4 replaced that with a stable, tracked set from
+        // /api/mitigation) - only Current/Predictive/Summary are derived here.
         function renderInsights(markdownText) {
             const html = marked.parse(markdownText || '');
             const temp = document.createElement('div');
             temp.innerHTML = html;
 
-            const tabsEl = document.getElementById('insights-tabs');
             const nodes = Array.from(temp.childNodes);
             const hasHeading = nodes.some(n => n.nodeType === 1 && /^H[1-6]$/.test(n.tagName));
 
             const currentPanel = document.getElementById('tab-panel-current');
             const rationaleContainer = document.getElementById('predictive-rationale');
-            const mitigationPanel = document.getElementById('tab-panel-mitigation');
             const summaryPanel = document.getElementById('tab-panel-summary');
-            [currentPanel, rationaleContainer, mitigationPanel, summaryPanel].forEach(p => p.innerHTML = '');
+            [currentPanel, rationaleContainer, summaryPanel].forEach(p => p.innerHTML = '');
 
             if (!hasHeading) {
-                // No recognizable section structure (e.g. disabled/error message) - show flat, hide tabs.
                 currentPanel.appendChild(temp);
-                tabsEl.classList.add('hidden');
-                document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-                currentPanel.classList.remove('hidden');
                 return;
             }
-            tabsEl.classList.remove('hidden');
 
             const sections = { intro: [], current: [], predictive: [], mitigation: [] };
             let bucket = 'intro';
@@ -599,17 +747,12 @@
                 sections[bucket].push(node);
             });
 
-            // Keep the merge separate from the raw sections so the intro's
-            // "Date of Report" metadata line doesn't get picked as the
-            // Current Situation summary snippet below.
             sections.intro.concat(sections.current).forEach(n => currentPanel.appendChild(n.cloneNode(true)));
             sections.predictive.forEach(n => rationaleContainer.appendChild(n.cloneNode(true)));
-            sections.mitigation.forEach(n => mitigationPanel.appendChild(n.cloneNode(true)));
 
             const summaryItems = [
                 { key: 'current', label: 'Current Situation' },
                 { key: 'predictive', label: 'Predictive Insights' },
-                { key: 'mitigation', label: 'Mitigation Measures' },
             ].map(({ key, label }) => {
                 const snippet = firstSnippet(sections[key]);
                 return snippet ? `<li class="mb-2"><strong>${label}:</strong> ${snippet}</li>` : '';
@@ -622,13 +765,45 @@
                 summaryPanel.innerHTML = '<p class="text-gray-500 text-sm">No summary available.</p>';
             }
 
-            [currentPanel, rationaleContainer, mitigationPanel, summaryPanel].forEach(makeTablesResponsive);
+            [currentPanel, rationaleContainer, summaryPanel].forEach(makeTablesResponsive);
+        }
 
-            // Reset to the "Current Situation" tab on every fresh load.
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('.tab-btn[data-tab="current"]').classList.add('active');
+        // ---------------------------------------------------------------
+        // Tabs: ARIA tab pattern with roving-tabindex keyboard navigation
+        // (ArrowLeft/ArrowRight/Home/End), on top of click-to-switch.
+        // ---------------------------------------------------------------
+        function activateTab(btn) {
+            const container = btn.closest('[role="tablist"]');
+            container.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-selected', 'false');
+                b.tabIndex = -1;
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+            btn.tabIndex = 0;
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-            currentPanel.classList.remove('hidden');
+            document.getElementById('tab-panel-' + btn.dataset.tab).classList.remove('hidden');
+            if (btn.dataset.tab === 'predictive' && charts.forecast) charts.forecast.resize();
+        }
+
+        function wireTabGroup(container) {
+            const buttons = Array.from(container.querySelectorAll('.tab-btn'));
+            buttons.forEach((btn, i) => {
+                btn.addEventListener('click', () => activateTab(btn));
+                btn.addEventListener('keydown', (e) => {
+                    let newIndex = null;
+                    if (e.key === 'ArrowRight') newIndex = (i + 1) % buttons.length;
+                    else if (e.key === 'ArrowLeft') newIndex = (i - 1 + buttons.length) % buttons.length;
+                    else if (e.key === 'Home') newIndex = 0;
+                    else if (e.key === 'End') newIndex = buttons.length - 1;
+                    if (newIndex != null) {
+                        e.preventDefault();
+                        buttons[newIndex].focus();
+                        activateTab(buttons[newIndex]);
+                    }
+                });
+            });
         }
 
         // ---------------------------------------------------------------
@@ -653,9 +828,7 @@
                 select.addEventListener('change', () => {
                     currentCity = select.value;
                     localStorage.setItem('selectedCity', currentCity);
-                    document.getElementById('loading').classList.remove('hidden');
-                    document.getElementById('dashboard').classList.add('hidden');
-                    fetchDashboardData();
+                    fetchDashboardData(true);
                 });
             } catch (e) {
                 console.error('Failed to load city list:', e);
@@ -668,6 +841,7 @@
         const THRESHOLD_METRIC_LABELS = { pm2_5: 'PM2.5', pm10: 'PM10', nitrogen_dioxide: 'NO₂', ozone: 'O₃', carbon_monoxide: 'CO' };
         let activeThresholds = {};
         let lastAirQuality = null;
+        let lastWeather = null;
         let lastInsightsText = '';
 
         function loadStoredThresholdOverrides() {
@@ -693,6 +867,7 @@
                 input.type = 'number';
                 input.className = 'threshold-input mt-1';
                 input.value = activeThresholds[metric];
+                input.setAttribute('aria-label', `${THRESHOLD_METRIC_LABELS[metric] || metric} alert threshold in micrograms per cubic meter`);
                 input.addEventListener('change', () => {
                     const value = parseFloat(input.value);
                     const overridesNow = loadStoredThresholdOverrides();
@@ -823,53 +998,310 @@
             leafletMap.invalidateSize();
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initAQIGauge();
-            initMap();
-            loadCities();
-            document.querySelectorAll('#insights-tabs .tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('#insights-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-                    document.getElementById('tab-panel-' + btn.dataset.tab).classList.remove('hidden');
-                    // The forecast canvas lives inside a tab hidden by default, so
-                    // Chart.js may have sized it against a 0x0 container. Resize
-                    // once it's actually visible.
-                    if (btn.dataset.tab === 'predictive' && charts.forecast) {
-                        charts.forecast.resize();
+        // ---------------------------------------------------------------
+        // Mitigation tracking (Phase 4) - stable, persisted measures
+        // ---------------------------------------------------------------
+        const STATUS_LABELS = { proposed: 'Proposed', in_progress: 'In Progress', implemented: 'Implemented' };
+        const STATUS_ORDER = ['proposed', 'in_progress', 'implemented'];
+        let currentMeasures = [];
+
+        function mitigationCardHtml(measure) {
+            const impactSection = measure.status === 'implemented' ? `
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <label class="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+                        Impact tracking start date:
+                        <input type="date" class="threshold-input" data-field="implemented_start_date" value="${measure.implemented_start_date || ''}" data-id="${measure.id}">
+                    </label>
+                    <div class="mt-2" id="impact-${measure.id}"></div>
+                </div>` : '';
+
+            return `
+            <div class="mitigation-card" data-measure-id="${measure.id}">
+                <div class="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                        <h4 class="font-bold text-gray-800">${measure.title}</h4>
+                        <p class="text-sm text-gray-600 mt-1">${measure.description}</p>
+                    </div>
+                    <select class="threshold-input" data-field="status" data-id="${measure.id}" aria-label="Status for ${measure.title}">
+                        ${STATUS_ORDER.map(s => `<option value="${s}" ${s === measure.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="text-xs text-gray-400 mt-2">Status set: ${new Date(measure.status_date).toLocaleDateString()} &middot; targets ${THRESHOLD_METRIC_LABELS[measure.target_metric] || measure.target_metric}</div>
+                <textarea class="w-full mt-2 text-sm border border-gray-200 rounded p-2" rows="2" placeholder="Optional note..." data-field="note" data-id="${measure.id}" aria-label="Note for ${measure.title}">${measure.note || ''}</textarea>
+                ${impactSection}
+            </div>`;
+        }
+
+        async function loadMitigation() {
+            const listEl = document.getElementById('mitigation-list');
+            const emptyEl = document.getElementById('mitigation-empty');
+            const moreBtn = document.getElementById('mitigation-generate-more');
+            try {
+                const res = await fetch(`/api/mitigation?city=${currentCity}`);
+                const data = await res.json();
+                currentMeasures = data.measures || [];
+                if (!currentMeasures.length) {
+                    emptyEl.classList.remove('hidden');
+                    emptyEl.textContent = data.storage_configured
+                        ? 'No tracked mitigation measures yet.'
+                        : "No tracked mitigation measures yet - historical storage isn't configured, so measures can't be tracked.";
+                    listEl.innerHTML = '';
+                    moreBtn.classList.add('hidden');
+                    return;
+                }
+                emptyEl.classList.add('hidden');
+                listEl.innerHTML = currentMeasures.map(mitigationCardHtml).join('');
+                moreBtn.classList.toggle('hidden', !data.storage_configured);
+                wireMitigationInputs();
+                currentMeasures.forEach(m => {
+                    if (m.status === 'implemented' && m.implemented_start_date) renderImpactChart(m);
+                });
+            } catch (e) {
+                console.error('Failed to load mitigation measures:', e);
+            }
+        }
+
+        function wireMitigationInputs() {
+            document.querySelectorAll('#mitigation-list [data-field]').forEach(el => {
+                el.addEventListener('change', async () => {
+                    const id = el.dataset.id;
+                    const field = el.dataset.field;
+                    try {
+                        const res = await fetch(`/api/mitigation/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ [field]: el.value }),
+                        });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        await loadMitigation();
+                    } catch (e) {
+                        console.error('Failed to update mitigation measure:', e);
                     }
                 });
             });
-            document.querySelectorAll('#range-selector .tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('#range-selector .tab-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    loadHistory(btn.dataset.range);
-                });
+            const moreBtn = document.getElementById('mitigation-generate-more');
+            moreBtn.onclick = async () => {
+                moreBtn.disabled = true;
+                const original = moreBtn.textContent;
+                moreBtn.textContent = 'Generating...';
+                try {
+                    await fetch(`/api/mitigation/generate?city=${currentCity}`, { method: 'POST' });
+                    await loadMitigation();
+                } catch (e) {
+                    console.error('Failed to generate more measures:', e);
+                } finally {
+                    moreBtn.disabled = false;
+                    moreBtn.textContent = original;
+                }
+            };
+        }
+
+        function renderImpactChart(measure) {
+            const container = document.getElementById('impact-' + measure.id);
+            if (!container) return;
+            const metricConfig = ALL_METRICS.find(m => m.key === measure.target_metric) || AIR_METRICS[0];
+            const readings = lastHistoryReadings || [];
+            if (!readings.length) {
+                container.innerHTML = '<p class="text-xs text-gray-400">No historical data yet for impact comparison.</p>';
+                return;
+            }
+            const startDate = new Date(measure.implemented_start_date);
+            const before = readings.filter(r => new Date(r.recorded_at) < startDate).map(r => r[metricConfig.key]).filter(v => v != null);
+            const after = readings.filter(r => new Date(r.recorded_at) >= startDate).map(r => r[metricConfig.key]).filter(v => v != null);
+            const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+            const beforeAvg = avg(before);
+            const afterAvg = avg(after);
+
+            let summaryHtml = '<p class="text-xs text-gray-400">Not enough data before/after this date yet.</p>';
+            if (beforeAvg != null && afterAvg != null && beforeAvg !== 0) {
+                const pctChange = ((afterAvg - beforeAvg) / beforeAvg) * 100;
+                const dir = pctChange < 0 ? 'decreased' : 'increased';
+                summaryHtml = `<p class="text-xs text-gray-600">Avg ${t(metricConfig.i18n)} before: <strong>${beforeAvg.toFixed(1)}</strong>, after: <strong>${afterAvg.toFixed(1)}</strong> (${dir} ${Math.abs(pctChange).toFixed(0)}%)</p>`;
+            }
+            container.innerHTML = summaryHtml + `<div class="chart-card mt-2" style="height:140px;"><canvas id="impact-chart-${measure.id}" role="img" aria-label="Impact chart for ${measure.title}"></canvas></div>`;
+
+            const labels = readings.map(r => formatLabel(new Date(r.recorded_at), currentRange));
+            const data = readings.map(r => r[metricConfig.key]);
+            const splitIndex = readings.findIndex(r => new Date(r.recorded_at) >= startDate);
+            const lineLabel = splitIndex >= 0 ? labels[splitIndex] : labels[labels.length - 1];
+
+            const canvas = document.getElementById(`impact-chart-${measure.id}`);
+            const chartKey = 'impact-' + measure.id;
+            if (charts[chartKey]) charts[chartKey].destroy();
+            charts[chartKey] = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets: [{ data, borderColor: metricConfig.color, backgroundColor: metricConfig.color + '33', fill: true, pointRadius: 0, tension: 0.3, spanGaps: true }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                implLine: {
+                                    type: 'line', scaleID: 'x', value: lineLabel,
+                                    borderColor: '#16a34a', borderWidth: 2, borderDash: [4, 4],
+                                    label: { display: true, content: 'Implemented', position: 'start', backgroundColor: '#16a34a', color: '#fff', font: { size: 9 } },
+                                },
+                            },
+                        },
+                    },
+                    scales: { x: { ticks: { font: { size: 8 }, maxTicksLimit: 5 } }, y: { ticks: { font: { size: 8 } } } },
+                },
             });
-        });
+        }
+
+        function refreshImpactCharts() {
+            currentMeasures.forEach(m => {
+                if (m.status === 'implemented' && m.implemented_start_date) renderImpactChart(m);
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // ESG score (Phase 4)
+        // ---------------------------------------------------------------
+        function esgScoreColor(score) {
+            if (score >= 70) return '#16a34a';
+            if (score >= 40) return '#d97706';
+            return '#dc2626';
+        }
+
+        let esgLastResult = null;
+
+        async function loadEsgScore() {
+            const spinner = document.getElementById('esg-spinner');
+            spinner.classList.add('active');
+            try {
+                const res = await fetch(`/api/esg-score?city=${currentCity}&range=${currentRange}`);
+                const data = await res.json();
+                esgLastResult = data;
+                document.getElementById('esg-methodology').textContent = data.methodology;
+                const emptyEl = document.getElementById('esg-empty');
+
+                if (data.score == null) {
+                    emptyEl.classList.remove('hidden');
+                    ['esg-score-value', 'esg-env-component', 'esg-gov-component', 'esg-measures-summary'].forEach(id => document.getElementById(id).textContent = '--');
+                    if (charts.esgTrend) { charts.esgTrend.destroy(); charts.esgTrend = null; }
+                    return;
+                }
+                emptyEl.classList.add('hidden');
+                const scoreEl = document.getElementById('esg-score-value');
+                scoreEl.textContent = data.score;
+                scoreEl.style.color = esgScoreColor(data.score);
+                document.getElementById('esg-env-component').textContent = data.environmental_component;
+                document.getElementById('esg-gov-component').textContent = data.governance_component;
+                document.getElementById('esg-measures-summary').textContent = `${data.measures_implemented}/${data.measures_total} measures implemented`;
+
+                const canvas = document.getElementById('chart-esg-trend');
+                const labels = data.trend.map(pt => formatLabel(new Date(pt.period_start), currentRange));
+                const values = data.trend.map(pt => pt.score);
+                if (charts.esgTrend) charts.esgTrend.destroy();
+                charts.esgTrend = new Chart(canvas.getContext('2d'), {
+                    type: 'line',
+                    data: { labels, datasets: [{ data: values, borderColor: '#10b981', backgroundColor: '#10b98133', fill: true, pointRadius: 2, tension: 0.3 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } },
+                });
+            } catch (e) {
+                console.error('Failed to load ESG score:', e);
+            } finally {
+                spinner.classList.remove('active');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Export Report (Phase 4) - client-side PDF + CSV, no backend call
+        // ---------------------------------------------------------------
+        function csvEscape(value) {
+            const s = String(value ?? '');
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        }
+
+        function downloadBlob(content, filename, mime) {
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCsv() {
+            const rows = [];
+            rows.push(['City', document.getElementById('location-name').textContent]);
+            rows.push(['Exported At', new Date().toISOString()]);
+            if (esgLastResult && esgLastResult.score != null) rows.push(['ESG Score', esgLastResult.score]);
+            rows.push([]);
+            rows.push(['Metric', 'Value', 'Unit', 'Status']);
+            ALL_METRICS.forEach(m => {
+                const val = document.getElementById(m.id)?.textContent ?? '';
+                const badgeEl = document.getElementById(m.id + '-badge');
+                rows.push([t(m.i18n), val, m.unit, badgeEl ? badgeEl.textContent : '']);
+            });
+            rows.push([]);
+            rows.push(['Mitigation Measure', 'Status', 'Status Date', 'Note']);
+            currentMeasures.forEach(m => {
+                rows.push([m.title, STATUS_LABELS[m.status] || m.status, new Date(m.status_date).toLocaleDateString(), m.note || '']);
+            });
+            const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+            downloadBlob(csv, `esg-report-${currentCity}-${Date.now()}.csv`, 'text/csv');
+        }
+
+        function stripMarkdown(text) {
+            return (text || '').replace(/[#*_`>]/g, '').replace(/\n{3,}/g, '\n\n');
+        }
+
+        function exportPdf() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 15;
+            doc.setFontSize(16);
+            doc.text('ESG Environmental Monitoring Report', 14, y); y += 8;
+            doc.setFontSize(10);
+            doc.text(`${document.getElementById('location-name').textContent} - ${new Date().toLocaleString()}`, 14, y); y += 6;
+            if (esgLastResult && esgLastResult.score != null) {
+                doc.text(`ESG Score: ${esgLastResult.score} / 100`, 14, y); y += 4;
+            }
+            y += 4;
+
+            doc.autoTable({
+                startY: y,
+                head: [['Metric', 'Value', 'Status']],
+                body: ALL_METRICS.map(m => [t(m.i18n), `${document.getElementById(m.id)?.textContent ?? ''} ${m.unit}`, document.getElementById(m.id + '-badge')?.textContent ?? '']),
+                styles: { fontSize: 9 },
+            });
+            y = doc.lastAutoTable.finalY + 10;
+
+            doc.setFontSize(12);
+            doc.text('AI Environmental Analysis (summary)', 14, y); y += 6;
+            doc.setFontSize(9);
+            const currentText = stripMarkdown(document.getElementById('tab-panel-current')?.innerText || '').slice(0, 1200);
+            const lines = doc.splitTextToSize(currentText, 180);
+            doc.text(lines, 14, y);
+            y += lines.length * 4 + 10;
+
+            if (currentMeasures.length) {
+                if (y > 240) { doc.addPage(); y = 15; }
+                doc.setFontSize(12);
+                doc.text('Mitigation Measures', 14, y); y += 6;
+                doc.autoTable({
+                    startY: y,
+                    head: [['Title', 'Status', 'Since', 'Note']],
+                    body: currentMeasures.map(m => [m.title, STATUS_LABELS[m.status] || m.status, new Date(m.status_date).toLocaleDateString(), m.note || '']),
+                    styles: { fontSize: 8 },
+                });
+            }
+
+            doc.save(`esg-report-${currentCity}-${Date.now()}.pdf`);
+        }
 
         // ---------------------------------------------------------------
         // Historical trends & forecast (Phase 2)
         // ---------------------------------------------------------------
-        const AIR_METRICS = [
-            { key: 'pm2_5', id: 'pm25', color: '#3b82f6', isPollutant: true },
-            { key: 'pm10', id: 'pm10', color: '#6366f1', isPollutant: true },
-            { key: 'nitrogen_dioxide', id: 'no2', color: '#8b5cf6', isPollutant: true },
-            { key: 'ozone', id: 'o3', color: '#0ea5e9', isPollutant: true },
-            { key: 'carbon_monoxide', id: 'co', color: '#14b8a6', isPollutant: true },
-        ];
-        const WEATHER_METRICS = [
-            { key: 'temperature_2m', id: 'temp', color: '#f59e0b', isPollutant: false },
-            { key: 'relative_humidity_2m', id: 'humidity', color: '#0891b2', isPollutant: false },
-            { key: 'wind_speed_10m', id: 'wind', color: '#84cc16', isPollutant: false },
-            { key: 'precipitation', id: 'precip', color: '#2563eb', isPollutant: false },
-        ];
-        const ALL_METRICS = AIR_METRICS.concat(WEATHER_METRICS);
-
-        const charts = {}; // metric id (or 'forecast') -> Chart.js instance
+        const charts = {}; // metric id / 'forecast' / 'esgTrend' / 'impact-<id>' -> Chart.js instance
         let currentRange = '7d';
+        let lastHistoryReadings = [];
 
         function formatLabel(date, range) {
             if (range === '24h') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -920,7 +1352,6 @@
             ALL_METRICS.forEach(m => buildLineChart('chart-' + m.id, labels, readings.map(r => r[m.key]), m.color));
         }
 
-        // Least-squares fit of {x, y} points to y = slope*x + intercept.
         function linearRegression(points) {
             const n = points.length;
             const sumX = points.reduce((s, p) => s + p.x, 0);
@@ -933,9 +1364,6 @@
             return { slope, intercept: (sumY - slope * sumX) / n };
         }
 
-        // The forecast is a short-term (24-48h) projection, so it should be
-        // fit against recent dynamics, not a multi-week average - cap the
-        // historical context shown/fit regardless of the selected chart range.
         const FORECAST_CONTEXT_HOURS = 72;
 
         function formatForecastLabel(date) {
@@ -976,7 +1404,7 @@
             const forecastPoints = forecastHours.map(h => {
                 const x = lastX + h;
                 const y = Math.max(0, slope * x + intercept);
-                const spread = stdDev * (1 + h / 48); // widen further into the future
+                const spread = stdDev * (1 + h / 48);
                 return { t: new Date(startMs + x * 3600000), y, upper: y + spread, lower: Math.max(0, y - spread) };
             });
 
@@ -1026,15 +1454,22 @@
 
         async function loadHistory(range) {
             currentRange = range;
+            const spinner = document.getElementById('history-spinner');
+            spinner.classList.add('active');
             try {
                 const res = await fetch(`/api/history?range=${range}&city=${currentCity}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                renderTrendCharts(data.readings, range);
-                renderForecastChart(data.readings);
+                lastHistoryReadings = data.readings || [];
+                renderTrendCharts(lastHistoryReadings, range);
+                renderForecastChart(lastHistoryReadings);
+                refreshImpactCharts();
             } catch (e) {
                 console.error('Failed to load historical trends:', e);
+            } finally {
+                spinner.classList.remove('active');
             }
+            loadEsgScore();
         }
 
         function applyTrend(metric, currentValue, reference) {
@@ -1064,7 +1499,7 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (!data.readings.length) return;
-                const reference = data.readings[0]; // earliest point within the last 24h
+                const reference = data.readings[0];
                 AIR_METRICS.forEach(m => applyTrend(m, currentAirQuality[m.key], reference));
                 WEATHER_METRICS.forEach(m => applyTrend(m, currentWeather[m.key], reference));
             } catch (e) {
@@ -1075,7 +1510,9 @@
         // ---------------------------------------------------------------
         // Main fetch/populate
         // ---------------------------------------------------------------
-        async function fetchDashboardData() {
+        async function fetchDashboardData(isRefresh) {
+            const refreshSpinner = document.getElementById('refresh-spinner');
+            if (isRefresh) refreshSpinner.classList.add('active');
             try {
                 const response = await fetch(`/api/environmental-data?city=${currentCity}`);
                 if (!response.ok) {
@@ -1083,69 +1520,63 @@
                 }
                 const data = await response.json();
                 lastAirQuality = data.air_quality;
+                lastWeather = data.weather;
                 lastInsightsText = data.insights;
 
-                // Populate Location and Time
                 document.getElementById('location-name').textContent = data.location;
                 const time = new Date(data.air_quality.time).toLocaleString();
                 document.getElementById('timestamp').textContent = `Last Updated: ${time}`;
 
-                // Populate Air Quality Data + status badges
-                document.getElementById('pm25').textContent = data.air_quality.pm2_5;
-                document.getElementById('pm10').textContent = data.air_quality.pm10;
-                document.getElementById('no2').textContent = data.air_quality.nitrogen_dioxide;
-                document.getElementById('o3').textContent = data.air_quality.ozone;
-                document.getElementById('co').textContent = data.air_quality.carbon_monoxide;
-
-                setBadge('pm25-badge', classifyLadder(data.air_quality.pm2_5, POLLUTANT_LADDERS.pm25));
-                setBadge('pm10-badge', classifyLadder(data.air_quality.pm10, POLLUTANT_LADDERS.pm10));
-                setBadge('no2-badge', classifyLadder(data.air_quality.nitrogen_dioxide, POLLUTANT_LADDERS.no2));
-                setBadge('o3-badge', classifyLadder(data.air_quality.ozone, POLLUTANT_LADDERS.o3));
-                setBadge('co-badge', classifyLadder(data.air_quality.carbon_monoxide, POLLUTANT_LADDERS.co));
-
-                // Populate Weather Data + status badges
-                document.getElementById('temp').textContent = data.weather.temperature_2m;
-                document.getElementById('humidity').textContent = data.weather.relative_humidity_2m;
-                document.getElementById('wind').textContent = data.weather.wind_speed_10m;
-                document.getElementById('precip').textContent = data.weather.precipitation;
-
-                setBadge('temp-badge', classifyTemp(data.weather.temperature_2m));
-                setBadge('humidity-badge', classifyHumidity(data.weather.relative_humidity_2m));
-
-                // Composite AQI gauge
+                updateMetricValuesAndBadges(data.air_quality, data.weather);
                 updateAQIGauge(computeCompositeAQI(data.air_quality));
-
-                // AI Insights, split into tabs
                 renderInsights(data.insights);
 
-                // Alert thresholds (WHO defaults from the server, merged with
-                // any browser-local overrides) and the banner they drive
                 if (data.alert_thresholds) renderThresholdInputs(data.alert_thresholds);
                 checkAlerts(data.air_quality, data.insights);
 
-                // UI State Toggle - charts/map are created below, after the
-                // dashboard (and its containers) are actually visible, so
-                // Chart.js/Leaflet don't size against a 0x0 hidden container.
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
 
-                // Historical trends, forecast, and day-over-day trend arrows
                 loadHistory(currentRange);
                 loadTrendDeltas(data.air_quality, data.weather);
-
-                // Monitoring-location map pins from the mitigation section
                 updateMap(currentCity, data.insights, data.air_quality, data.weather);
+                loadMitigation();
 
             } catch (error) {
                 console.error("Failed to fetch data:", error);
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('error-message').classList.remove('hidden');
                 document.getElementById('error-text').textContent = "Failed to load data from the backend. Make sure the FastAPI server is running.";
+            } finally {
+                refreshSpinner.classList.remove('active');
             }
         }
 
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            initLanguage();
+            renderMetricCards();
+            initAQIGauge();
+            initMap();
+            loadCities();
+            wireTabGroup(document.getElementById('insights-tabs'));
+            document.querySelectorAll('#range-selector .tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#range-selector .tab-btn').forEach(b => {
+                        b.classList.remove('active');
+                        b.setAttribute('aria-pressed', 'false');
+                    });
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-pressed', 'true');
+                    loadHistory(btn.dataset.range);
+                });
+            });
+            document.getElementById('export-pdf-btn').addEventListener('click', exportPdf);
+            document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+        });
+
         // Run on load
-        window.onload = fetchDashboardData;
+        window.onload = () => fetchDashboardData(false);
     </script>
 </body>
 </html>

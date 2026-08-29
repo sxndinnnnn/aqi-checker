@@ -78,6 +78,24 @@ def init_db():
                 CREATE INDEX IF NOT EXISTS idx_readings_city_time
                 ON readings (city, recorded_at DESC)
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS mitigation_measures (
+                    id BIGSERIAL PRIMARY KEY,
+                    city TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    target_metric TEXT NOT NULL DEFAULT 'pm2_5',
+                    status TEXT NOT NULL DEFAULT 'proposed',
+                    status_date TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    note TEXT,
+                    implemented_start_date DATE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_mitigation_city
+                ON mitigation_measures (city)
+            """)
         conn.commit()
 
 
@@ -138,6 +156,73 @@ def get_latest_reading(city: str) -> dict | None:
                 ORDER BY recorded_at DESC
                 LIMIT 1
             """, (city,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [d.name for d in cur.description]
+            return dict(zip(cols, row))
+
+
+MITIGATION_COLUMNS = [
+    "id", "city", "title", "description", "target_metric",
+    "status", "status_date", "note", "implemented_start_date", "created_at",
+]
+VALID_MITIGATION_STATUSES = {"proposed", "in_progress", "implemented"}
+
+
+def get_mitigation_measures(city: str) -> list[dict]:
+    """Tracked mitigation measures for `city`, oldest first. A stable, persisted
+    set (not regenerated on every page load) so status/notes stay meaningful."""
+    if not is_configured():
+        return []
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT {", ".join(MITIGATION_COLUMNS)}
+                FROM mitigation_measures
+                WHERE city = %s
+                ORDER BY created_at ASC
+            """, (city,))
+            cols = [d.name for d in cur.description]
+            rows = cur.fetchall()
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def insert_mitigation_measures(city: str, measures: list[dict]):
+    """Bulk insert of newly-generated measures, each a dict with
+    title/description/target_metric keys."""
+    if not is_configured() or not measures:
+        return
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            for m in measures:
+                cur.execute("""
+                    INSERT INTO mitigation_measures (city, title, description, target_metric)
+                    VALUES (%s, %s, %s, %s)
+                """, (city, m["title"], m["description"], m.get("target_metric", "pm2_5")))
+        conn.commit()
+
+
+def update_mitigation_measure(measure_id: int, status: str | None, note: str | None, implemented_start_date: str | None) -> dict | None:
+    """Partial update - only fields explicitly passed (not None) are changed.
+    status_date is refreshed to now() whenever status changes."""
+    if not is_configured():
+        return None
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            if status is not None:
+                cur.execute("""
+                    UPDATE mitigation_measures
+                    SET status = %s, status_date = now()
+                    WHERE id = %s
+                """, (status, measure_id))
+            if note is not None:
+                cur.execute("UPDATE mitigation_measures SET note = %s WHERE id = %s", (note, measure_id))
+            if implemented_start_date is not None:
+                cur.execute("UPDATE mitigation_measures SET implemented_start_date = %s WHERE id = %s", (implemented_start_date, measure_id))
+            conn.commit()
+
+            cur.execute(f"SELECT {', '.join(MITIGATION_COLUMNS)} FROM mitigation_measures WHERE id = %s", (measure_id,))
             row = cur.fetchone()
             if not row:
                 return None

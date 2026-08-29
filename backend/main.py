@@ -1,13 +1,16 @@
 import requests
 import os
+import json
+import re
 from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from backend import db, alerts
+from backend import db, alerts, esg_score
 
 app = FastAPI(title="Sri Lanka ESG AI Monitor")
 
@@ -90,6 +93,59 @@ def generate_insights(city_name, air_quality, weather):
     except Exception as e:
         print(f"Error generating insights: {e}")
         return "Insight generation failed due to an error with the AI provider."
+
+VALID_TARGET_METRICS = {"pm2_5", "pm10", "nitrogen_dioxide", "ozone", "carbon_monoxide"}
+
+def generate_mitigation_measures(city_name, air_quality, weather):
+    """Generate a stable, structured set of mitigation measures (unlike the
+    freeform narrative insights, these are parsed JSON so they can be
+    persisted and tracked over time)."""
+    if not OPENROUTER_API_KEY:
+        return []
+    try:
+        prompt = f"""
+        You are an ESG consultant. Based on this real-time environmental data for {city_name}:
+
+        Air Quality: {air_quality}
+        Weather: {weather}
+
+        Propose exactly 3 actionable ESG mitigation measures for local businesses or
+        government to improve public health and the environment.
+
+        Respond with ONLY a raw JSON array, no markdown code fences, no explanation,
+        in exactly this shape:
+        [{{"title": "short title, max 8 words", "description": "1-3 sentence description", "target_metric": "one of pm2_5, pm10, nitrogen_dioxide, ozone, carbon_monoxide"}}]
+        """
+        response = requests.post(
+            OPENROUTER_URL,
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+            json={
+                "model": "minimax/minimax-m3:free",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        content = re.sub(r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE).strip()
+        measures = json.loads(content)
+
+        cleaned = []
+        for m in measures:
+            title = str(m.get("title", "")).strip()
+            description = str(m.get("description", "")).strip()
+            target = m.get("target_metric") if m.get("target_metric") in VALID_TARGET_METRICS else "pm2_5"
+            if title and description:
+                cleaned.append({"title": title, "description": description, "target_metric": target})
+        return cleaned[:5]
+    except Exception as e:
+        print(f"Error generating mitigation measures: {e}")
+        return []
+
+class MitigationUpdate(BaseModel):
+    status: str | None = None
+    note: str | None = None
+    implemented_start_date: str | None = None
 
 def fetch_current_readings(lat, lon):
     """Fetch the current air quality + weather snapshot from Open-Meteo for one location."""
@@ -204,6 +260,70 @@ def cron_collect(authorization: str | None = Header(default=None)):
         except Exception as e:
             results[city_info["name"]] = f"error: {e}"
     return {"status": "ok", "cities": results}
+
+@app.get("/api/mitigation")
+def get_mitigation(city: str = DEFAULT_CITY):
+    if city not in CITIES:
+        raise HTTPException(status_code=400, detail=f"city must be one of {sorted(CITIES)}")
+    city_info = CITIES[city]
+    try:
+        measures = db.get_mitigation_measures(city_info["name"])
+        if not measures and db.is_configured():
+            # First time this city has been viewed - generate its initial,
+            # stable set of tracked measures. Skipped with no DB configured,
+            # since anything generated could never be persisted/tracked anyway.
+            current_aqi, current_weather = fetch_current_readings(city_info["lat"], city_info["lon"])
+            generated = generate_mitigation_measures(city_info["name"], current_aqi, current_weather)
+            if generated:
+                db.insert_mitigation_measures(city_info["name"], generated)
+                measures = db.get_mitigation_measures(city_info["name"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"location": city_info["name"], "measures": measures, "storage_configured": db.is_configured()}
+
+@app.post("/api/mitigation/generate")
+def generate_more_mitigation(city: str = DEFAULT_CITY):
+    """User-triggered - appends fresh AI-suggested measures without touching
+    the existing tracked ones."""
+    if city not in CITIES:
+        raise HTTPException(status_code=400, detail=f"city must be one of {sorted(CITIES)}")
+    if not db.is_configured():
+        raise HTTPException(status_code=503, detail="Historical storage isn't configured, so measures can't be tracked yet")
+    city_info = CITIES[city]
+    try:
+        current_aqi, current_weather = fetch_current_readings(city_info["lat"], city_info["lon"])
+        generated = generate_mitigation_measures(city_info["name"], current_aqi, current_weather)
+        db.insert_mitigation_measures(city_info["name"], generated)
+        measures = db.get_mitigation_measures(city_info["name"])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"location": city_info["name"], "measures": measures}
+
+@app.patch("/api/mitigation/{measure_id}")
+def patch_mitigation(measure_id: int, update: MitigationUpdate):
+    if update.status is not None and update.status not in db.VALID_MITIGATION_STATUSES:
+        raise HTTPException(status_code=400, detail=f"status must be one of {sorted(db.VALID_MITIGATION_STATUSES)}")
+    try:
+        updated = db.update_mitigation_measure(measure_id, update.status, update.note, update.implemented_start_date)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Measure not found, or historical storage isn't configured")
+    return updated
+
+@app.get("/api/esg-score")
+def get_esg_score(city: str = DEFAULT_CITY, range: str = "30d"):
+    if city not in CITIES:
+        raise HTTPException(status_code=400, detail=f"city must be one of {sorted(CITIES)}")
+    if range not in VALID_HISTORY_RANGES:
+        raise HTTPException(status_code=400, detail=f"range must be one of {sorted(VALID_HISTORY_RANGES)}")
+    try:
+        result = esg_score.compute_esg_score(CITIES[city]["name"], range)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    result["location"] = CITIES[city]["name"]
+    result["range"] = range
+    return result
 
 app.frontend("/", directory="frontend")
 

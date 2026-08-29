@@ -7,6 +7,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import { Line } from 'react-chartjs-2';
 import { AIR_METRICS, WEATHER_METRICS } from '../metrics';
 import { formatLabel } from '../utils/format';
+import { useI18n } from '../I18nContext';
 import '../chartSetup';
 
 const RANGES = ['24h', '7d', '30d', '90d'];
@@ -35,6 +36,7 @@ function MiniChart({ title, labels, data, color, ariaLabel }) {
 }
 
 export default function HistoricalTrends({ range, onRangeChange, readings, loading }) {
+  const t = useI18n();
   const labels = useMemo(() => readings.map((r) => formatLabel(new Date(r.recorded_at), range)), [readings, range]);
 
   return (
@@ -73,7 +75,7 @@ export default function HistoricalTrends({ range, onRangeChange, readings, loadi
               {AIR_METRICS.map((m) => (
                 <MiniChart
                   key={m.id}
-                  title={`${m.i18n.replace('metric.', '').toUpperCase()} (µg/m³)`}
+                  title={`${t(m.i18n)} (${m.unit})`}
                   ariaLabel={`${m.id} historical trend chart`}
                   labels={labels}
                   data={readings.map((r) => r[m.key])}
@@ -86,7 +88,7 @@ export default function HistoricalTrends({ range, onRangeChange, readings, loadi
               {WEATHER_METRICS.map((m) => (
                 <MiniChart
                   key={m.id}
-                  title={`${m.id} (${m.unit})`}
+                  title={`${t(m.i18n)} (${m.unit})`}
                   ariaLabel={`${m.id} historical trend chart`}
                   labels={labels}
                   data={readings.map((r) => r[m.key])}

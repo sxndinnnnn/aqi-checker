@@ -13,14 +13,53 @@
         .markdown-body p { margin-bottom: 0.75rem; }
         .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
         .markdown-body strong { font-weight: bold; color: #2d3748; }
+
+        /* Status badges (WHO/EPA-derived, 3-tier) */
+        .badge-pill { display: inline-block; font-size: 0.65rem; line-height: 1rem; padding: 0.125rem 0.5rem; border-radius: 9999px; font-weight: 600; white-space: nowrap; }
+        .badge-good { background: #dcfce7; color: #166534; }
+        .badge-moderate { background: #fef3c7; color: #92400e; }
+        .badge-poor { background: #fee2e2; color: #991b1b; }
+        .legend-dot { width: 0.65rem; height: 0.65rem; border-radius: 9999px; display: inline-block; }
+
+        /* Trend indicators - hidden until Phase 2 supplies historical data (see JS TODO) */
+        .metric-trend { font-weight: 700; }
+
+        /* AQI gauge */
+        .aqi-gauge-wrap { text-align: center; }
+        #aqi-value { font-size: 2rem; font-weight: 800; fill: #111827; }
+        #aqi-category-text { font-size: 0.6rem; font-weight: 600; fill: #4b5563; }
+
+        /* AI insight tabs */
+        .tab-btn { padding: 0.375rem 0.9rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; background: #f3f4f6; color: #374151; border: 1px solid transparent; cursor: pointer; }
+        .tab-btn.active { background: #16a34a; color: #fff; }
+        .tab-panel.hidden { display: none; }
+
+        /* Responsive tables inside AI insight content */
+        .table-scroll { overflow-x: auto; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: left; }
+        .markdown-body th { background: #f9fafb; font-weight: 600; }
+
+        @media (max-width: 640px) {
+            .markdown-body table, .markdown-body thead, .markdown-body tbody, .markdown-body th, .markdown-body td, .markdown-body tr {
+                display: block; width: 100%;
+            }
+            .markdown-body thead { display: none; }
+            .markdown-body tr { margin-bottom: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.5rem; }
+            .markdown-body td { border: none !important; position: relative; padding-left: 45%; min-height: 1.5rem; }
+            .markdown-body td[data-label]::before {
+                position: absolute; left: 0.5rem; top: 0.5rem; width: 40%;
+                font-weight: 600; color: #4b5563; content: attr(data-label);
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
-    
+
     <nav class="bg-green-700 text-white p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold">🌱 Sri Lanka ESG AI Monitor</h1>
-            <span class="text-sm">Real-time Environmental Insights</span>
+            <span class="text-sm hidden sm:inline">Real-time Environmental Insights</span>
         </div>
     </nav>
 
@@ -34,25 +73,96 @@
         </div>
 
         <div id="dashboard" class="hidden">
-            <div class="mb-6 flex justify-between items-end border-b border-gray-300 pb-2">
-                <h2 class="text-3xl font-extrabold text-gray-900" id="location-name">Location</h2>
-                <span class="text-gray-500 text-sm" id="timestamp"></span>
+            <div class="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-gray-300 pb-4">
+                <div>
+                    <h2 class="text-3xl font-extrabold text-gray-900" id="location-name">Location</h2>
+                    <span class="text-gray-500 text-sm" id="timestamp"></span>
+                </div>
+
+                <!-- Composite AQI gauge (US EPA AQI formula) -->
+                <div class="aqi-gauge-wrap">
+                    <svg id="aqi-svg" viewBox="0 0 200 120" class="w-40 h-24 mx-auto md:mx-0"></svg>
+                    <div class="text-sm font-bold text-gray-800" id="aqi-category-label">--</div>
+                    <div class="text-[0.65rem] text-gray-400" id="aqi-dominant">Composite AQI</div>
+                </div>
             </div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap gap-4 items-center text-xs text-gray-600 mb-3">
+                <span class="font-semibold">Status legend:</span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-green-500"></span> Good</span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-amber-500"></span> Moderate</span>
+                <span class="flex items-center gap-1"><span class="legend-dot bg-red-500"></span> Poor / Unhealthy</span>
+            </div>
+            <p class="text-[0.65rem] text-gray-400 mb-4">
+                Badges approximate WHO/EPA guidance using instantaneous readings (official AQI categories use 24-hour or 8-hour averages).
+            </p>
 
             <!-- Data Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                
+
                 <!-- Air Quality Card -->
                 <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
                     <h3 class="text-xl font-bold mb-4 flex items-center text-blue-800">
                         <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
                         Air Quality Metrics
                     </h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">PM 2.5</span><span class="font-bold text-lg" id="pm25">--</span> µg/m³</div>
-                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">PM 10</span><span class="font-bold text-lg" id="pm10">--</span> µg/m³</div>
-                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">Nitrogen Dioxide (NO₂)</span><span class="font-bold text-lg" id="no2">--</span> µg/m³</div>
-                        <div class="bg-blue-50 p-3 rounded"><span class="block text-sm text-gray-500">Ozone (O₃)</span><span class="font-bold text-lg" id="o3">--</span> µg/m³</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="bg-blue-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">PM 2.5</span>
+                                <span class="badge-pill" id="pm25-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="pm25">--</span>
+                                <span class="text-xs text-gray-500">µg/m³</span>
+                                <span class="metric-trend hidden ml-1" id="pm25-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">PM 10</span>
+                                <span class="badge-pill" id="pm10-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="pm10">--</span>
+                                <span class="text-xs text-gray-500">µg/m³</span>
+                                <span class="metric-trend hidden ml-1" id="pm10-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">Nitrogen Dioxide (NO₂)</span>
+                                <span class="badge-pill" id="no2-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="no2">--</span>
+                                <span class="text-xs text-gray-500">µg/m³</span>
+                                <span class="metric-trend hidden ml-1" id="no2-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">Ozone (O₃)</span>
+                                <span class="badge-pill" id="o3-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="o3">--</span>
+                                <span class="text-xs text-gray-500">µg/m³</span>
+                                <span class="metric-trend hidden ml-1" id="o3-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">Carbon Monoxide (CO)</span>
+                                <span class="badge-pill" id="co-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="co">--</span>
+                                <span class="text-xs text-gray-500">µg/m³</span>
+                                <span class="metric-trend hidden ml-1" id="co-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -62,11 +172,45 @@
                         <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                         Climate/Weather
                     </h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Temperature</span><span class="font-bold text-lg" id="temp">--</span> °C</div>
-                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Humidity</span><span class="font-bold text-lg" id="humidity">--</span> %</div>
-                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Wind Speed</span><span class="font-bold text-lg" id="wind">--</span> km/h</div>
-                        <div class="bg-yellow-50 p-3 rounded"><span class="block text-sm text-gray-500">Precipitation</span><span class="font-bold text-lg" id="precip">--</span> mm</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-yellow-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">Temperature</span>
+                                <span class="badge-pill" id="temp-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="temp">--</span>
+                                <span class="text-xs text-gray-500">°C</span>
+                                <span class="metric-trend hidden ml-1" id="temp-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-500">Humidity</span>
+                                <span class="badge-pill" id="humidity-badge">--</span>
+                            </div>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="humidity">--</span>
+                                <span class="text-xs text-gray-500">%</span>
+                                <span class="metric-trend hidden ml-1" id="humidity-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded">
+                            <span class="block text-sm text-gray-500">Wind Speed</span>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="wind">--</span>
+                                <span class="text-xs text-gray-500">km/h</span>
+                                <span class="metric-trend hidden ml-1" id="wind-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded">
+                            <span class="block text-sm text-gray-500">Precipitation</span>
+                            <div class="flex items-baseline gap-1">
+                                <span class="font-bold text-lg" id="precip">--</span>
+                                <span class="text-xs text-gray-500">mm</span>
+                                <span class="metric-trend hidden ml-1" id="precip-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -74,17 +218,29 @@
             <!-- AI Insights Card -->
             <div class="bg-white rounded-lg shadow-lg border-t-4 border-green-600">
                 <div class="bg-green-50 p-4 border-b border-gray-200">
-                    <h3 class="text-xl font-bold flex items-center text-green-900">
-                        <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        AI-Generated ESG Predictive Insights & Mitigation
-                    </h3>
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h3 class="text-xl font-bold flex items-center text-green-900">
+                            <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            AI-Generated ESG Predictive Insights & Mitigation
+                        </h3>
+                        <span class="badge-pill" style="background:#fef9c3;color:#854d0e;">⚠ AI-generated — verify before use in official reporting</span>
+                    </div>
+                    <div id="insights-tabs" class="flex flex-wrap gap-2 mt-4" role="tablist">
+                        <button class="tab-btn active" data-tab="current" role="tab" aria-selected="true">Current Situation</button>
+                        <button class="tab-btn" data-tab="predictive" role="tab" aria-selected="false">Predictive Insights</button>
+                        <button class="tab-btn" data-tab="mitigation" role="tab" aria-selected="false">Mitigation Measures</button>
+                        <button class="tab-btn" data-tab="summary" role="tab" aria-selected="false">Summary</button>
+                    </div>
                 </div>
-                <div class="p-6 markdown-body" id="ai-insights">
-                    <!-- AI Content gets injected here -->
+                <div class="p-6">
+                    <div class="tab-panel markdown-body" id="tab-panel-current"></div>
+                    <div class="tab-panel markdown-body hidden" id="tab-panel-predictive"></div>
+                    <div class="tab-panel markdown-body hidden" id="tab-panel-mitigation"></div>
+                    <div class="tab-panel markdown-body hidden" id="tab-panel-summary"></div>
                 </div>
             </div>
         </div>
-        
+
         <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-6" role="alert">
             <strong class="font-bold">Holy smokes!</strong>
             <span class="block sm:inline" id="error-text">Something went wrong.</span>
@@ -92,6 +248,303 @@
     </div>
 
     <script>
+        // ---------------------------------------------------------------
+        // Status badges (WHO/EPA-derived, approximate, instantaneous data)
+        // ---------------------------------------------------------------
+        function classifyLadder(value, ladder) {
+            for (const step of ladder) {
+                if (value <= step.max) return step;
+            }
+            return ladder[ladder.length - 1];
+        }
+
+        // Ladders keyed on the raw µg/m³ values shown in the UI.
+        const POLLUTANT_LADDERS = {
+            pm25: [ { max: 12.0, cls: 'good', label: 'Good' }, { max: 35.4, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
+            pm10: [ { max: 54, cls: 'good', label: 'Good' }, { max: 154, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
+            no2:  [ { max: 100, cls: 'good', label: 'Good' }, { max: 188, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
+            o3:   [ { max: 108, cls: 'good', label: 'Good' }, { max: 137, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
+            co:   [ { max: 5038, cls: 'good', label: 'Good' }, { max: 10763, cls: 'moderate', label: 'Moderate' }, { max: Infinity, cls: 'poor', label: 'Unhealthy' } ],
+        };
+
+        function classifyTemp(t) {
+            if (t >= 18 && t <= 30) return { cls: 'good', label: 'Comfortable' };
+            if ((t >= 10 && t < 18) || (t > 30 && t <= 35)) return { cls: 'moderate', label: 'Caution' };
+            return { cls: 'poor', label: 'Extreme' };
+        }
+
+        function classifyHumidity(h) {
+            if (h >= 30 && h <= 60) return { cls: 'good', label: 'Comfortable' };
+            if ((h >= 20 && h < 30) || (h > 60 && h <= 75)) return { cls: 'moderate', label: 'Humid' };
+            return { cls: 'poor', label: 'Extreme' };
+        }
+
+        function setBadge(id, status) {
+            const el = document.getElementById(id);
+            if (!el || !status) return;
+            el.className = 'badge-pill badge-' + status.cls;
+            el.textContent = status.label;
+        }
+
+        // ---------------------------------------------------------------
+        // Composite AQI (US EPA formula), computed from PM2.5/PM10/CO/NO2/O3
+        // ---------------------------------------------------------------
+        const AQI_BREAKPOINTS = {
+            pm25: [ [0.0, 12.0, 0, 50], [12.1, 35.4, 51, 100], [35.5, 55.4, 101, 150], [55.5, 150.4, 151, 200], [150.5, 250.4, 201, 300], [250.5, 500.4, 301, 500] ],
+            pm10: [ [0, 54, 0, 50], [55, 154, 51, 100], [155, 254, 101, 150], [255, 354, 151, 200], [355, 424, 201, 300], [425, 604, 301, 500] ],
+            co:   [ [0.0, 4.4, 0, 50], [4.5, 9.4, 51, 100], [9.5, 12.4, 101, 150], [12.5, 15.4, 151, 200], [15.5, 30.4, 201, 300], [30.5, 50.4, 301, 500] ], // ppm
+            no2:  [ [0, 53, 0, 50], [54, 100, 51, 100], [101, 360, 101, 150], [361, 649, 151, 200], [650, 1249, 201, 300], [1250, 2049, 301, 500] ], // ppb
+            o3:   [ [0.000, 0.054, 0, 50], [0.055, 0.070, 51, 100], [0.071, 0.085, 101, 150], [0.086, 0.105, 151, 200], [0.106, 0.200, 201, 300] ], // ppm, 8-hr table
+        };
+
+        function subAQI(conc, table) {
+            if (conc == null || isNaN(conc)) return null;
+            for (const [cLow, cHigh, aLow, aHigh] of table) {
+                if (conc >= cLow && conc <= cHigh) {
+                    return Math.round(((aHigh - aLow) / (cHigh - cLow)) * (conc - cLow) + aLow);
+                }
+            }
+            const last = table[table.length - 1];
+            return conc > last[1] ? 500 : 0;
+        }
+
+        function computeCompositeAQI(aq) {
+            const candidates = [
+                { name: 'PM2.5', aqi: subAQI(aq.pm2_5, AQI_BREAKPOINTS.pm25) },
+                { name: 'PM10', aqi: subAQI(aq.pm10, AQI_BREAKPOINTS.pm10) },
+                { name: 'CO', aqi: subAQI(aq.carbon_monoxide / 1145, AQI_BREAKPOINTS.co) },       // µg/m³ -> ppm
+                { name: 'NO₂', aqi: subAQI(aq.nitrogen_dioxide / 1.88, AQI_BREAKPOINTS.no2) },    // µg/m³ -> ppb
+                { name: 'O₃', aqi: subAQI(aq.ozone / 1960, AQI_BREAKPOINTS.o3) },                 // µg/m³ -> ppm
+            ].filter(c => c.aqi != null);
+            if (!candidates.length) return null;
+            candidates.sort((a, b) => b.aqi - a.aqi);
+            return { aqi: candidates[0].aqi, dominant: candidates[0].name };
+        }
+
+        function aqiCategory(aqi) {
+            if (aqi <= 50) return { label: 'Good', color: '#22c55e' };
+            if (aqi <= 100) return { label: 'Moderate', color: '#eab308' };
+            if (aqi <= 150) return { label: 'Unhealthy for Sensitive Groups', color: '#f97316' };
+            if (aqi <= 200) return { label: 'Unhealthy', color: '#ef4444' };
+            if (aqi <= 300) return { label: 'Very Unhealthy', color: '#a855f7' };
+            return { label: 'Hazardous', color: '#7f1d1d' };
+        }
+
+        // Semicircle gauge geometry: phi 0 = left end, 90 = top, 180 = right end.
+        function pointOnGauge(cx, cy, r, phiDeg) {
+            const alpha = (180 - phiDeg) * Math.PI / 180;
+            return { x: cx + r * Math.cos(alpha), y: cy - r * Math.sin(alpha) };
+        }
+
+        function arcPath(cx, cy, r, phi1, phi2) {
+            const start = pointOnGauge(cx, cy, r, phi1);
+            const end = pointOnGauge(cx, cy, r, phi2);
+            const largeArc = (phi2 - phi1) > 180 ? 1 : 0;
+            return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+        }
+
+        const NS = 'http://www.w3.org/2000/svg';
+        let aqiNeedle = null;
+
+        function initAQIGauge() {
+            const svg = document.getElementById('aqi-svg');
+            const cx = 100, cy = 105, r = 80;
+            // AQI 0-500 mapped across 180 degrees; band edges at the standard category cutoffs.
+            const bands = [
+                { from: 0, to: 50, color: '#22c55e' },
+                { from: 50, to: 100, color: '#eab308' },
+                { from: 100, to: 150, color: '#f97316' },
+                { from: 150, to: 200, color: '#ef4444' },
+                { from: 200, to: 300, color: '#a855f7' },
+                { from: 300, to: 500, color: '#7f1d1d' },
+            ];
+            bands.forEach(b => {
+                const phi1 = (b.from / 500) * 180;
+                const phi2 = (b.to / 500) * 180;
+                const path = document.createElementNS(NS, 'path');
+                path.setAttribute('d', arcPath(cx, cy, r, phi1, phi2));
+                path.setAttribute('stroke', b.color);
+                path.setAttribute('stroke-width', '18');
+                path.setAttribute('fill', 'none');
+                svg.appendChild(path);
+            });
+
+            aqiNeedle = document.createElementNS(NS, 'line');
+            aqiNeedle.setAttribute('x1', cx);
+            aqiNeedle.setAttribute('y1', cy);
+            aqiNeedle.setAttribute('x2', cx - r + 18);
+            aqiNeedle.setAttribute('y2', cy);
+            aqiNeedle.setAttribute('stroke', '#111827');
+            aqiNeedle.setAttribute('stroke-width', '3');
+            aqiNeedle.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(aqiNeedle);
+
+            const pivot = document.createElementNS(NS, 'circle');
+            pivot.setAttribute('cx', cx);
+            pivot.setAttribute('cy', cy);
+            pivot.setAttribute('r', 5);
+            pivot.setAttribute('fill', '#111827');
+            svg.appendChild(pivot);
+
+            const valueText = document.createElementNS(NS, 'text');
+            valueText.setAttribute('id', 'aqi-value');
+            valueText.setAttribute('x', cx);
+            valueText.setAttribute('y', cy - 22);
+            valueText.setAttribute('text-anchor', 'middle');
+            svg.appendChild(valueText);
+        }
+
+        function updateAQIGauge(result) {
+            const categoryLabelEl = document.getElementById('aqi-category-label');
+            const dominantEl = document.getElementById('aqi-dominant');
+            if (!result) {
+                document.getElementById('aqi-value').textContent = '--';
+                categoryLabelEl.textContent = 'N/A';
+                dominantEl.textContent = 'Composite AQI unavailable';
+                return;
+            }
+            const { aqi, dominant } = result;
+            const category = aqiCategory(aqi);
+            const cx = 100, cy = 105, r = 62;
+            const phi = Math.max(0, Math.min(180, (aqi / 500) * 180));
+            const end = pointOnGauge(cx, cy, r, phi);
+            aqiNeedle.setAttribute('x2', end.x);
+            aqiNeedle.setAttribute('y2', end.y);
+            aqiNeedle.setAttribute('stroke', category.color);
+
+            const valueText = document.getElementById('aqi-value');
+            valueText.textContent = aqi;
+            valueText.setAttribute('fill', category.color);
+
+            categoryLabelEl.textContent = category.label;
+            categoryLabelEl.style.color = category.color;
+            dominantEl.textContent = `Composite AQI · dominant: ${dominant}`;
+        }
+
+        // ---------------------------------------------------------------
+        // AI insights: split the markdown into Current / Predictive /
+        // Mitigation / Summary tabs without changing the backend prompt.
+        // ---------------------------------------------------------------
+        function makeTablesResponsive(root) {
+            root.querySelectorAll('table').forEach(table => {
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                table.querySelectorAll('tbody tr').forEach(tr => {
+                    Array.from(tr.children).forEach((td, i) => {
+                        if (headers[i]) td.setAttribute('data-label', headers[i]);
+                    });
+                });
+                if (!table.parentElement.classList.contains('table-scroll')) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'table-scroll';
+                    table.parentElement.insertBefore(wrapper, table);
+                    wrapper.appendChild(table);
+                }
+            });
+        }
+
+        // Skip short "Label: value" metadata lines (timestamps, report headers)
+        // so the summary surfaces actual analysis instead of a date stamp.
+        const METADATA_LINE = /^(timestamp|reporting time|report time|date|location)\s*:/i;
+
+        function firstSnippet(nodes) {
+            for (const n of nodes) {
+                if (n.nodeType === 1 && n.tagName === 'P' && n.textContent.trim()) {
+                    const text = n.textContent.trim();
+                    if (METADATA_LINE.test(text) || text.length < 25) continue;
+                    return text.split(/(?<=[.!?])\s/)[0];
+                }
+                if (n.nodeType === 1 && (n.tagName === 'UL' || n.tagName === 'OL')) {
+                    const li = n.querySelector('li');
+                    if (li) return li.textContent.trim();
+                }
+            }
+            return null;
+        }
+
+        function renderInsights(markdownText) {
+            const html = marked.parse(markdownText || '');
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+
+            const tabsEl = document.getElementById('insights-tabs');
+            const nodes = Array.from(temp.childNodes);
+            const hasHeading = nodes.some(n => n.nodeType === 1 && /^H[1-6]$/.test(n.tagName));
+
+            const currentPanel = document.getElementById('tab-panel-current');
+            const predictivePanel = document.getElementById('tab-panel-predictive');
+            const mitigationPanel = document.getElementById('tab-panel-mitigation');
+            const summaryPanel = document.getElementById('tab-panel-summary');
+            [currentPanel, predictivePanel, mitigationPanel, summaryPanel].forEach(p => p.innerHTML = '');
+
+            if (!hasHeading) {
+                // No recognizable section structure (e.g. disabled/error message) - show flat, hide tabs.
+                currentPanel.appendChild(temp);
+                tabsEl.classList.add('hidden');
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                currentPanel.classList.remove('hidden');
+                return;
+            }
+            tabsEl.classList.remove('hidden');
+
+            const sections = { intro: [], current: [], predictive: [], mitigation: [] };
+            let bucket = 'intro';
+            nodes.forEach(node => {
+                if (node.nodeType === 1 && /^H[1-6]$/.test(node.tagName)) {
+                    const text = node.textContent.toLowerCase();
+                    if (/current|situation/.test(text)) bucket = 'current';
+                    else if (/predict|trend|forecast/.test(text)) bucket = 'predictive';
+                    else if (/mitigat|action/.test(text)) bucket = 'mitigation';
+                }
+                sections[bucket].push(node);
+            });
+
+            // Keep the merge separate from the raw sections so the intro's
+            // "Date of Report" metadata line doesn't get picked as the
+            // Current Situation summary snippet below.
+            sections.intro.concat(sections.current).forEach(n => currentPanel.appendChild(n.cloneNode(true)));
+            sections.predictive.forEach(n => predictivePanel.appendChild(n.cloneNode(true)));
+            sections.mitigation.forEach(n => mitigationPanel.appendChild(n.cloneNode(true)));
+
+            const summaryItems = [
+                { key: 'current', label: 'Current Situation' },
+                { key: 'predictive', label: 'Predictive Insights' },
+                { key: 'mitigation', label: 'Mitigation Measures' },
+            ].map(({ key, label }) => {
+                const snippet = firstSnippet(sections[key]);
+                return snippet ? `<li class="mb-2"><strong>${label}:</strong> ${snippet}</li>` : '';
+            }).join('');
+
+            if (summaryItems) {
+                summaryPanel.innerHTML = `<ul class="list-disc ml-5">${summaryItems}</ul>
+                    <p class="text-xs text-gray-400 italic mt-3">Auto-generated summary — see the other tabs for full detail.</p>`;
+            } else {
+                summaryPanel.innerHTML = '<p class="text-gray-500 text-sm">No summary available.</p>';
+            }
+
+            [currentPanel, predictivePanel, mitigationPanel, summaryPanel].forEach(makeTablesResponsive);
+
+            // Reset to the "Current Situation" tab on every fresh load.
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.tab-btn[data-tab="current"]').classList.add('active');
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+            currentPanel.classList.remove('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initAQIGauge();
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                    document.getElementById('tab-panel-' + btn.dataset.tab).classList.remove('hidden');
+                });
+            });
+        });
+
+        // ---------------------------------------------------------------
+        // Main fetch/populate
+        // ---------------------------------------------------------------
         async function fetchDashboardData() {
             try {
                 const response = await fetch('/api/environmental-data');
@@ -105,20 +558,38 @@
                 const time = new Date(data.air_quality.time).toLocaleString();
                 document.getElementById('timestamp').textContent = `Last Updated: ${time}`;
 
-                // Populate AQI Data
+                // Populate Air Quality Data + status badges
                 document.getElementById('pm25').textContent = data.air_quality.pm2_5;
                 document.getElementById('pm10').textContent = data.air_quality.pm10;
                 document.getElementById('no2').textContent = data.air_quality.nitrogen_dioxide;
                 document.getElementById('o3').textContent = data.air_quality.ozone;
+                document.getElementById('co').textContent = data.air_quality.carbon_monoxide;
 
-                // Populate Weather Data
+                setBadge('pm25-badge', classifyLadder(data.air_quality.pm2_5, POLLUTANT_LADDERS.pm25));
+                setBadge('pm10-badge', classifyLadder(data.air_quality.pm10, POLLUTANT_LADDERS.pm10));
+                setBadge('no2-badge', classifyLadder(data.air_quality.nitrogen_dioxide, POLLUTANT_LADDERS.no2));
+                setBadge('o3-badge', classifyLadder(data.air_quality.ozone, POLLUTANT_LADDERS.o3));
+                setBadge('co-badge', classifyLadder(data.air_quality.carbon_monoxide, POLLUTANT_LADDERS.co));
+
+                // Populate Weather Data + status badges
                 document.getElementById('temp').textContent = data.weather.temperature_2m;
                 document.getElementById('humidity').textContent = data.weather.relative_humidity_2m;
                 document.getElementById('wind').textContent = data.weather.wind_speed_10m;
                 document.getElementById('precip').textContent = data.weather.precipitation;
 
-                // Populate AI Insights (Converting Markdown to HTML)
-                document.getElementById('ai-insights').innerHTML = marked.parse(data.insights);
+                setBadge('temp-badge', classifyTemp(data.weather.temperature_2m));
+                setBadge('humidity-badge', classifyHumidity(data.weather.relative_humidity_2m));
+
+                // TODO(Phase 2): Populate .metric-trend spans (↑/↓/→) once the
+                // backend supplies a previous reading to compare against.
+                // Each request currently returns a single point-in-time
+                // snapshot, so trend indicators stay hidden for now.
+
+                // Composite AQI gauge
+                updateAQIGauge(computeCompositeAQI(data.air_quality));
+
+                // AI Insights, split into tabs
+                renderInsights(data.insights);
 
                 // UI State Toggle
                 document.getElementById('loading').classList.add('hidden');

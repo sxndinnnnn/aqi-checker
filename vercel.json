@@ -4,5 +4,11 @@
     "backend/main.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/collect",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

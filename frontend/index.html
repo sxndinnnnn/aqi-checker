@@ -6,6 +6,7 @@
     <title>Sri Lanka ESG Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .markdown-body h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
         .markdown-body h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
@@ -21,8 +22,13 @@
         .badge-poor { background: #fee2e2; color: #991b1b; }
         .legend-dot { width: 0.65rem; height: 0.65rem; border-radius: 9999px; display: inline-block; }
 
-        /* Trend indicators - hidden until Phase 2 supplies historical data (see JS TODO) */
+        /* Trend indicators - wired to real day-over-day deltas (Phase 2) */
         .metric-trend { font-weight: 700; }
+
+        /* Historical trend charts */
+        .chart-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem; height: 180px; display: flex; flex-direction: column; }
+        .chart-card canvas { flex: 1; width: 100% !important; height: 100% !important; }
+        .chart-title { font-size: 0.7rem; color: #6b7280; font-weight: 600; margin-bottom: 0.25rem; }
 
         /* AQI gauge */
         .aqi-gauge-wrap { text-align: center; }
@@ -116,7 +122,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="pm25">--</span>
                                 <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="pm25-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="pm25-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-blue-50 p-3 rounded">
@@ -127,7 +133,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="pm10">--</span>
                                 <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="pm10-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="pm10-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-blue-50 p-3 rounded">
@@ -138,7 +144,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="no2">--</span>
                                 <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="no2-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="no2-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-blue-50 p-3 rounded">
@@ -149,7 +155,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="o3">--</span>
                                 <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="o3-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="o3-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-blue-50 p-3 rounded">
@@ -160,7 +166,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="co">--</span>
                                 <span class="text-xs text-gray-500">µg/m³</span>
-                                <span class="metric-trend hidden ml-1" id="co-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="co-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                     </div>
@@ -181,7 +187,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="temp">--</span>
                                 <span class="text-xs text-gray-500">°C</span>
-                                <span class="metric-trend hidden ml-1" id="temp-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="temp-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-yellow-50 p-3 rounded">
@@ -192,7 +198,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="humidity">--</span>
                                 <span class="text-xs text-gray-500">%</span>
-                                <span class="metric-trend hidden ml-1" id="humidity-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="humidity-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-yellow-50 p-3 rounded">
@@ -200,7 +206,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="wind">--</span>
                                 <span class="text-xs text-gray-500">km/h</span>
-                                <span class="metric-trend hidden ml-1" id="wind-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="wind-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                         <div class="bg-yellow-50 p-3 rounded">
@@ -208,7 +214,7 @@
                             <div class="flex items-baseline gap-1">
                                 <span class="font-bold text-lg" id="precip">--</span>
                                 <span class="text-xs text-gray-500">mm</span>
-                                <span class="metric-trend hidden ml-1" id="precip-trend" title="Trend vs previous reading (Phase 2)">→</span>
+                                <span class="metric-trend hidden ml-1" id="precip-trend" title="Trend vs ~24h ago">→</span>
                             </div>
                         </div>
                     </div>
@@ -233,10 +239,60 @@
                     </div>
                 </div>
                 <div class="p-6">
-                    <div class="tab-panel markdown-body" id="tab-panel-current"></div>
-                    <div class="tab-panel markdown-body hidden" id="tab-panel-predictive"></div>
+            <div class="tab-panel markdown-body" id="tab-panel-current"></div>
+                    <div class="tab-panel hidden" id="tab-panel-predictive">
+                        <div class="chart-card mb-4" style="height: 220px;">
+                            <span class="chart-title">Composite AQI Forecast (next 48h)</span>
+                            <canvas id="chart-forecast"></canvas>
+                        </div>
+                        <p id="forecast-empty" class="hidden text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded p-4 mb-4">
+                            Not enough historical data yet to forecast a trend - check back after a few days of data collection.
+                        </p>
+                        <details class="text-sm">
+                            <summary class="cursor-pointer font-semibold text-gray-700">AI rationale for this forecast</summary>
+                            <div class="markdown-body mt-2" id="predictive-rationale"></div>
+                        </details>
+                    </div>
                     <div class="tab-panel markdown-body hidden" id="tab-panel-mitigation"></div>
                     <div class="tab-panel markdown-body hidden" id="tab-panel-summary"></div>
+                </div>
+            </div>
+
+            <!-- Historical Trends -->
+            <div class="bg-white rounded-lg shadow-lg border-t-4 border-indigo-500 mt-8">
+                <div class="bg-indigo-50 p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                    <h3 class="text-xl font-bold flex items-center text-indigo-900">
+                        <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        Historical Trends
+                    </h3>
+                    <div class="flex gap-2" id="range-selector" role="tablist">
+                        <button class="tab-btn" data-range="24h" role="tab">24h</button>
+                        <button class="tab-btn active" data-range="7d" role="tab">7d</button>
+                        <button class="tab-btn" data-range="30d" role="tab">30d</button>
+                        <button class="tab-btn" data-range="90d" role="tab">90d</button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="history-empty" class="hidden text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded p-4">
+                        No historical data yet for this range. Readings are collected automatically once a day, plus every time this dashboard is loaded - check back after a few days.
+                    </div>
+                    <div id="history-charts">
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Air Quality</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            <div class="chart-card"><span class="chart-title">PM2.5 (µg/m³)</span><canvas id="chart-pm25"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">PM10 (µg/m³)</span><canvas id="chart-pm10"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">NO₂ (µg/m³)</span><canvas id="chart-no2"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">O₃ (µg/m³)</span><canvas id="chart-o3"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">CO (µg/m³)</span><canvas id="chart-co"></canvas></div>
+                        </div>
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Weather</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="chart-card"><span class="chart-title">Temperature (°C)</span><canvas id="chart-temp"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Humidity (%)</span><canvas id="chart-humidity"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Wind Speed (km/h)</span><canvas id="chart-wind"></canvas></div>
+                            <div class="chart-card"><span class="chart-title">Precipitation (mm)</span><canvas id="chart-precip"></canvas></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -471,10 +527,10 @@
             const hasHeading = nodes.some(n => n.nodeType === 1 && /^H[1-6]$/.test(n.tagName));
 
             const currentPanel = document.getElementById('tab-panel-current');
-            const predictivePanel = document.getElementById('tab-panel-predictive');
+            const rationaleContainer = document.getElementById('predictive-rationale');
             const mitigationPanel = document.getElementById('tab-panel-mitigation');
             const summaryPanel = document.getElementById('tab-panel-summary');
-            [currentPanel, predictivePanel, mitigationPanel, summaryPanel].forEach(p => p.innerHTML = '');
+            [currentPanel, rationaleContainer, mitigationPanel, summaryPanel].forEach(p => p.innerHTML = '');
 
             if (!hasHeading) {
                 // No recognizable section structure (e.g. disabled/error message) - show flat, hide tabs.
@@ -502,7 +558,7 @@
             // "Date of Report" metadata line doesn't get picked as the
             // Current Situation summary snippet below.
             sections.intro.concat(sections.current).forEach(n => currentPanel.appendChild(n.cloneNode(true)));
-            sections.predictive.forEach(n => predictivePanel.appendChild(n.cloneNode(true)));
+            sections.predictive.forEach(n => rationaleContainer.appendChild(n.cloneNode(true)));
             sections.mitigation.forEach(n => mitigationPanel.appendChild(n.cloneNode(true)));
 
             const summaryItems = [
@@ -521,7 +577,7 @@
                 summaryPanel.innerHTML = '<p class="text-gray-500 text-sm">No summary available.</p>';
             }
 
-            [currentPanel, predictivePanel, mitigationPanel, summaryPanel].forEach(makeTablesResponsive);
+            [currentPanel, rationaleContainer, mitigationPanel, summaryPanel].forEach(makeTablesResponsive);
 
             // Reset to the "Current Situation" tab on every fresh load.
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -532,15 +588,250 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initAQIGauge();
-            document.querySelectorAll('.tab-btn').forEach(btn => {
+            document.querySelectorAll('#insights-tabs .tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('#insights-tabs .tab-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
                     document.getElementById('tab-panel-' + btn.dataset.tab).classList.remove('hidden');
+                    // The forecast canvas lives inside a tab hidden by default, so
+                    // Chart.js may have sized it against a 0x0 container. Resize
+                    // once it's actually visible.
+                    if (btn.dataset.tab === 'predictive' && charts.forecast) {
+                        charts.forecast.resize();
+                    }
+                });
+            });
+            document.querySelectorAll('#range-selector .tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#range-selector .tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    loadHistory(btn.dataset.range);
                 });
             });
         });
+
+        // ---------------------------------------------------------------
+        // Historical trends & forecast (Phase 2)
+        // ---------------------------------------------------------------
+        const AIR_METRICS = [
+            { key: 'pm2_5', id: 'pm25', color: '#3b82f6', isPollutant: true },
+            { key: 'pm10', id: 'pm10', color: '#6366f1', isPollutant: true },
+            { key: 'nitrogen_dioxide', id: 'no2', color: '#8b5cf6', isPollutant: true },
+            { key: 'ozone', id: 'o3', color: '#0ea5e9', isPollutant: true },
+            { key: 'carbon_monoxide', id: 'co', color: '#14b8a6', isPollutant: true },
+        ];
+        const WEATHER_METRICS = [
+            { key: 'temperature_2m', id: 'temp', color: '#f59e0b', isPollutant: false },
+            { key: 'relative_humidity_2m', id: 'humidity', color: '#0891b2', isPollutant: false },
+            { key: 'wind_speed_10m', id: 'wind', color: '#84cc16', isPollutant: false },
+            { key: 'precipitation', id: 'precip', color: '#2563eb', isPollutant: false },
+        ];
+        const ALL_METRICS = AIR_METRICS.concat(WEATHER_METRICS);
+
+        const charts = {}; // metric id (or 'forecast') -> Chart.js instance
+        let currentRange = '7d';
+
+        function formatLabel(date, range) {
+            if (range === '24h') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+
+        function buildLineChart(canvasId, labels, data, color) {
+            const canvas = document.getElementById(canvasId);
+            if (charts[canvasId]) charts[canvasId].destroy();
+            charts[canvasId] = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        borderColor: color,
+                        backgroundColor: color + '33',
+                        fill: true,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        spanGaps: true,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 5, font: { size: 9 } } },
+                        y: { ticks: { font: { size: 9 } } },
+                    },
+                },
+            });
+        }
+
+        function renderTrendCharts(readings, range) {
+            const emptyEl = document.getElementById('history-empty');
+            const chartsEl = document.getElementById('history-charts');
+            if (!readings.length) {
+                emptyEl.classList.remove('hidden');
+                chartsEl.classList.add('hidden');
+                return;
+            }
+            emptyEl.classList.add('hidden');
+            chartsEl.classList.remove('hidden');
+
+            const labels = readings.map(r => formatLabel(new Date(r.recorded_at), range));
+            ALL_METRICS.forEach(m => buildLineChart('chart-' + m.id, labels, readings.map(r => r[m.key]), m.color));
+        }
+
+        // Least-squares fit of {x, y} points to y = slope*x + intercept.
+        function linearRegression(points) {
+            const n = points.length;
+            const sumX = points.reduce((s, p) => s + p.x, 0);
+            const sumY = points.reduce((s, p) => s + p.y, 0);
+            const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+            const sumXX = points.reduce((s, p) => s + p.x * p.x, 0);
+            const denom = n * sumXX - sumX * sumX;
+            if (denom === 0) return { slope: 0, intercept: sumY / n };
+            const slope = (n * sumXY - sumX * sumY) / denom;
+            return { slope, intercept: (sumY - slope * sumX) / n };
+        }
+
+        // The forecast is a short-term (24-48h) projection, so it should be
+        // fit against recent dynamics, not a multi-week average - cap the
+        // historical context shown/fit regardless of the selected chart range.
+        const FORECAST_CONTEXT_HOURS = 72;
+
+        function formatForecastLabel(date) {
+            return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderForecastChart(readings) {
+            const canvas = document.getElementById('chart-forecast');
+            const emptyEl = document.getElementById('forecast-empty');
+
+            const cutoff = readings.length ? new Date(readings[readings.length - 1].recorded_at).getTime() - FORECAST_CONTEXT_HOURS * 3600000 : 0;
+            const series = readings
+                .filter(r => new Date(r.recorded_at).getTime() >= cutoff)
+                .map(r => ({ t: new Date(r.recorded_at), aqi: computeCompositeAQI(r) }))
+                .filter(p => p.aqi != null)
+                .map(p => ({ t: p.t, aqi: p.aqi.aqi }));
+
+            if (series.length < 3) {
+                emptyEl.classList.remove('hidden');
+                canvas.classList.add('hidden');
+                if (charts.forecast) { charts.forecast.destroy(); charts.forecast = null; }
+                return;
+            }
+            emptyEl.classList.add('hidden');
+            canvas.classList.remove('hidden');
+
+            const startMs = series[0].t.getTime();
+            const points = series.map(p => ({ x: (p.t.getTime() - startMs) / 3600000, y: p.aqi }));
+            const { slope, intercept } = linearRegression(points);
+
+            const residuals = points.map(p => p.y - (slope * p.x + intercept));
+            const meanResidual = residuals.reduce((a, b) => a + b, 0) / residuals.length;
+            const variance = residuals.reduce((s, r) => s + (r - meanResidual) ** 2, 0) / Math.max(1, residuals.length - 1);
+            const stdDev = Math.sqrt(variance);
+
+            const lastX = points[points.length - 1].x;
+            const forecastHours = [6, 12, 18, 24, 30, 36, 42, 48];
+            const forecastPoints = forecastHours.map(h => {
+                const x = lastX + h;
+                const y = Math.max(0, slope * x + intercept);
+                const spread = stdDev * (1 + h / 48); // widen further into the future
+                return { t: new Date(startMs + x * 3600000), y, upper: y + spread, lower: Math.max(0, y - spread) };
+            });
+
+            const labels = series.map(p => formatForecastLabel(p.t)).concat(forecastPoints.map(p => formatForecastLabel(p.t)));
+            const historyCount = series.length;
+            const pad = (arr) => arr.concat(new Array(forecastPoints.length).fill(null));
+
+            const historyLine = pad(series.map(p => p.aqi));
+            const forecastLine = new Array(historyCount + forecastPoints.length).fill(null);
+            const upperBand = new Array(historyCount + forecastPoints.length).fill(null);
+            const lowerBand = new Array(historyCount + forecastPoints.length).fill(null);
+            forecastLine[historyCount - 1] = series[historyCount - 1].aqi;
+            upperBand[historyCount - 1] = series[historyCount - 1].aqi;
+            lowerBand[historyCount - 1] = series[historyCount - 1].aqi;
+            forecastPoints.forEach((fp, i) => {
+                forecastLine[historyCount + i] = fp.y;
+                upperBand[historyCount + i] = fp.upper;
+                lowerBand[historyCount + i] = fp.lower;
+            });
+
+            if (charts.forecast) charts.forecast.destroy();
+            charts.forecast = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Confidence band', data: upperBand, borderColor: 'transparent', backgroundColor: 'rgba(99,102,241,0.15)', pointRadius: 0, fill: '+1', spanGaps: true },
+                        { label: 'Lower bound', data: lowerBand, borderColor: 'transparent', backgroundColor: 'rgba(99,102,241,0.15)', pointRadius: 0, fill: false, spanGaps: true },
+                        { label: 'Forecast', data: forecastLine, borderColor: '#6366f1', borderDash: [6, 4], pointRadius: 0, fill: false, spanGaps: true },
+                        { label: 'Historical', data: historyLine, borderColor: '#111827', backgroundColor: 'transparent', pointRadius: 0, fill: false, spanGaps: true },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { filter: item => item.text === 'Historical' || item.text === 'Forecast' || item.text === 'Confidence band' } },
+                    },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 8, font: { size: 9 } } },
+                        y: { title: { display: true, text: 'Composite AQI' }, beginAtZero: true },
+                    },
+                },
+            });
+        }
+
+        async function loadHistory(range) {
+            currentRange = range;
+            try {
+                const res = await fetch(`/api/history?range=${range}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                renderTrendCharts(data.readings, range);
+                renderForecastChart(data.readings);
+            } catch (e) {
+                console.error('Failed to load historical trends:', e);
+            }
+        }
+
+        function applyTrend(metric, currentValue, reference) {
+            const el = document.getElementById(metric.id + '-trend');
+            const previous = reference[metric.key];
+            if (!el || previous == null || currentValue == null || isNaN(currentValue)) return;
+
+            const delta = currentValue - previous;
+            const noiseFloor = Math.max(Math.abs(previous) * 0.02, 0.05);
+            let arrow = '→', colorClass = 'text-gray-400';
+            if (delta > noiseFloor) {
+                arrow = '↑';
+                colorClass = metric.isPollutant ? 'text-red-500' : 'text-gray-500';
+            } else if (delta < -noiseFloor) {
+                arrow = '↓';
+                colorClass = metric.isPollutant ? 'text-green-600' : 'text-gray-500';
+            }
+            el.textContent = arrow;
+            el.className = 'metric-trend ml-1 ' + colorClass;
+            el.title = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} vs ~24h ago (was ${previous})`;
+            el.classList.remove('hidden');
+        }
+
+        async function loadTrendDeltas(currentAirQuality, currentWeather) {
+            try {
+                const res = await fetch('/api/history?range=24h');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (!data.readings.length) return;
+                const reference = data.readings[0]; // earliest point within the last 24h
+                AIR_METRICS.forEach(m => applyTrend(m, currentAirQuality[m.key], reference));
+                WEATHER_METRICS.forEach(m => applyTrend(m, currentWeather[m.key], reference));
+            } catch (e) {
+                console.error('Failed to load trend deltas:', e);
+            }
+        }
 
         // ---------------------------------------------------------------
         // Main fetch/populate
@@ -580,20 +871,21 @@
                 setBadge('temp-badge', classifyTemp(data.weather.temperature_2m));
                 setBadge('humidity-badge', classifyHumidity(data.weather.relative_humidity_2m));
 
-                // TODO(Phase 2): Populate .metric-trend spans (↑/↓/→) once the
-                // backend supplies a previous reading to compare against.
-                // Each request currently returns a single point-in-time
-                // snapshot, so trend indicators stay hidden for now.
-
                 // Composite AQI gauge
                 updateAQIGauge(computeCompositeAQI(data.air_quality));
 
                 // AI Insights, split into tabs
                 renderInsights(data.insights);
 
-                // UI State Toggle
+                // UI State Toggle - charts are created below, after the dashboard
+                // (and its canvases) are actually visible, so Chart.js doesn't
+                // size them against a 0x0 hidden container.
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
+
+                // Historical trends, forecast, and day-over-day trend arrows
+                loadHistory(currentRange);
+                loadTrendDeltas(data.air_quality, data.weather);
 
             } catch (error) {
                 console.error("Failed to fetch data:", error);

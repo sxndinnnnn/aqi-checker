@@ -94,7 +94,7 @@
     <script>
         async function fetchDashboardData() {
             try {
-                const response = await fetch('http://localhost:8000/api/environmental-data');
+                const response = await fetch('/api/environmental-data');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }

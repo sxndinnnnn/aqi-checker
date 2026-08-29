@@ -4,12 +4,12 @@ A live environmental dashboard for Colombo, Sri Lanka. It pulls real-time air qu
 
 ## What it does
 
-- **Backend** (`backend/main.py`): a FastAPI server that exposes a single endpoint, `GET /api/environmental-data`, which:
+- **Backend** (`backend/main.py`): a FastAPI server that exposes `GET /api/environmental-data`, which:
   1. Fetches current air quality data (PM2.5, PM10, CO, NO₂, SO₂, ozone, UV index) for Colombo.
   2. Fetches current weather data (temperature, humidity, precipitation, wind speed).
   3. Sends both to an LLM with a prompt asking for an ESG analysis, 24-48 hour predictive trends, and 3 actionable mitigation measures.
   4. Returns everything as JSON.
-- **Frontend** (`frontend/index.html`): a single static HTML page (Tailwind + vanilla JS) that calls the backend endpoint and renders the air quality, weather, and AI insights as a dashboard.
+- **Frontend** (`frontend/index.html`): a single static HTML page (Tailwind + vanilla JS) that calls the backend endpoint and renders the air quality, weather, and AI insights as a dashboard. FastAPI serves it directly at `/` via `app.frontend()`, so the whole app runs from one server/port.
 
 ## Prerequisites
 
@@ -47,23 +47,23 @@ A live environmental dashboard for Colombo, Sri Lanka. It pulls real-time air qu
 
    Without this, `/api/environmental-data` still returns live air quality and weather data — the `insights` field just explains that generation is disabled.
 
-4. **Run the backend**
+4. **Run the app**
 
    ```bash
    python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
    ```
 
-   The API is now available at `http://localhost:8000/api/environmental-data`.
+   Open `http://localhost:8000` in your browser — FastAPI serves both the dashboard and the `/api/environmental-data` endpoint from this one server.
 
-5. **Run the frontend**
+## Deploying to Vercel
 
-   In a separate terminal, serve the `frontend` folder as static files:
+The repo already includes `pyproject.toml` (points Vercel at the `app` instance in `backend/main.py`) and `vercel.json` (raises the function timeout to 60s, since the AI call can take 15-20s on free-tier models). Connect the repo in the Vercel dashboard, or run:
 
-   ```bash
-   python -m http.server 3000 --directory frontend
-   ```
+```bash
+vc deploy
+```
 
-   Then open `http://localhost:3000/index.html` in your browser. It fetches from `http://localhost:8000` by default (see the `fetch` call in `frontend/index.html` if you need to point it elsewhere).
+Set `OPENROUTER_API_KEY` as an environment variable in your Vercel project settings so the deployed app can generate insights.
 
 ## Notes
 

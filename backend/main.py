@@ -90,6 +90,8 @@ def get_environmental_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+app.frontend("/", directory="frontend")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
